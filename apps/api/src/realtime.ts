@@ -25,10 +25,11 @@ export function initRealtime(server: HttpServer) {
         /* anonymous viewer */
       }
     }
-    socket.on("subscribe", (room: unknown) => {
+    socket.on("subscribe", (room: unknown, opts?: { host?: boolean }) => {
       if (typeof room !== "string" || !/^(stream|auction|product):[a-z0-9]+$/i.test(room)) return;
       socket.join(room);
-      if (room.startsWith("stream:")) {
+      // The host's own studio connection is not counted as a viewer.
+      if (room.startsWith("stream:") && !opts?.host) {
         const id = room.slice(7);
         if (!viewers.has(id)) viewers.set(id, new Set());
         viewers.get(id)!.add(socket.id);

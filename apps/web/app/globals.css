@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-glint: var(--glint);
+  --color-glint-ink: var(--glint-ink);
+  --color-live: var(--live);
+  --color-ai: var(--ai);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+}
+
+:root {
+  --paper: #f6f4ef;
+  --card: #ffffff;
+  --ink: #15131a;
+  --muted: #6b6772;
+  --line: #e4e0d8;
+  --glint: #ff5a36;
+  --glint-ink: #ffffff;
+  --live: #e5173f;
+  --ai: #6d4aff;
+  --ok: #148a5b;
+  --warn: #b26a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f0e13;
+    --card: #18161f;
+    --ink: #f3f1f6;
+    --muted: #9a95a3;
+    --line: #2a2733;
+    --glint: #ff6a48;
+    --glint-ink: #120a07;
+    --live: #ff3b5c;
+    --ai: #9a83ff;
+    --ok: #3ccf91;
+    --warn: #f0a531;
+  }
+}
+
+html { background: var(--paper); color: var(--ink); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
+@utility btn-primary { @apply btn bg-glint text-glint-ink hover:brightness-110; }
+@utility btn-ghost { @apply btn border border-line hover:bg-card; }
+@utility btn-ai { @apply btn bg-ai text-white hover:brightness-110; }
+@utility input { @apply w-full rounded-xl border border-line bg-card px-3 py-2 text-sm outline-none focus:border-glint focus:ring-2 focus:ring-glint/20; }
+@utility label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-muted; }
+@utility panel { @apply rounded-2xl border border-line bg-card; }
+@utility chip { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide; }
