@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { api, logout, saveTokens } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
+import { SocialSignIn } from "@/components/SocialSignIn";
 import { Btn, Chip, Empty, ErrorNote, Field, Loading, Money, T, s, useColors } from "@/components/ui";
 
 export default function Account() {
@@ -20,6 +21,7 @@ function AuthForm() {
   return (
     <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled">
       <T size={26} weight="800">{mode === "login" ? "Welcome back" : "Create your account"}</T>
+      <SocialSignIn />
       {mode === "register" && (
         <>
           <Field label="Name" value={f.displayName} onChangeText={set("displayName")} />
@@ -47,7 +49,6 @@ function AuthForm() {
         }}
       />
       <Btn kind="ghost" title={mode === "login" ? "New here? Create an account" : "Have an account? Log in"} onPress={() => setMode(mode === "login" ? "register" : "login")} />
-      <T size={12} color={c.muted}>Sign in with Apple and Google need their developer credentials on the server; they're not switched on yet.</T>
     </ScrollView>
   );
 }
@@ -71,7 +72,12 @@ function Profile() {
             </View>
           </View>
           {o.items.map((i: any) => <T key={i.id} size={13} color={c.muted}>{i.quantity} × {i.titleSnapshot}</T>)}
-          {o.shipments?.map((sh: any) => <T key={sh.id} size={12}>Shipped{sh.carrier ? ` via ${sh.carrier}` : ""}{sh.trackingNumber ? ` · ${sh.trackingNumber}` : ""}</T>)}
+          {o.shipments?.map((sh: any) => (
+            <View key={sh.id} style={{ gap: 2 }}>
+              <T size={12} weight="600">{sh.status.replace(/_/g, " ").toLowerCase()}{sh.carrier ? ` · ${sh.carrier}` : ""}{sh.trackingNumber ? ` ${sh.trackingNumber}` : ""}</T>
+              {sh.events?.[0] && <T size={12} color={c.muted}>{new Date(sh.events[0].occurredAt).toLocaleDateString()} · {sh.events[0].description ?? sh.events[0].status.toLowerCase()}{sh.events[0].location ? ` · ${sh.events[0].location}` : ""}</T>}
+            </View>
+          ))}
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <T size={12} color={c.muted}>{new Date(o.createdAt).toLocaleDateString()}</T>
             <Money cents={o.totalCents} />

@@ -7,7 +7,9 @@ import { Empty, ErrorNote, Loading, Money } from "@/components/ui";
 import { AddressForm, emptyAddress } from "@/components/AddressForm";
 
 export default function CartPage() {
-  const { data: cart, loading, error, reload } = useApi<any>("/cart");
+  const { data: cart, loading, error, reload: reloadCart } = useApi<any>("/cart");
+  const totals = useApi<any>("/cart/totals");
+  const reload = () => (reloadCart(), totals.reload());
   const caps = useApi<any>("/capabilities");
   const [address, setAddress] = useState(emptyAddress);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,6 @@ export default function CartPage() {
       </div>
     );
   const items = cart?.items ?? [];
-  const total = items.reduce((s: number, i: any) => s + i.variant.priceCents * i.quantity, 0);
   return (
     <div className="grid gap-8 md:grid-cols-[1fr_380px]">
       <section>
@@ -69,10 +70,31 @@ export default function CartPage() {
         <aside className="panel h-fit space-y-4 p-5">
           <h2 className="font-display text-lg font-semibold">Checkout</h2>
           <AddressForm value={address} onChange={setAddress} />
-          <div className="flex justify-between border-t border-line pt-3 font-semibold">
-            <span>Total</span>
-            <Money cents={total} />
-          </div>
+          {totals.data && (
+            <div className="space-y-1 border-t border-line pt-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted">Items</span>
+                <Money cents={totals.data.subtotalCents} />
+              </div>
+              {totals.data.sellers.map((s: any) => (
+                <div key={s.sellerId}>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Shipping{totals.data.sellers.length > 1 ? ` from ${s.name}` : ""}</span>
+                    {s.shippingCents ? <Money cents={s.shippingCents} /> : <span className="text-ok">Free</span>}
+                  </div>
+                  {s.freeShippingGapCents > 0 && (
+                    <div className="text-xs text-brand-light">
+                      Add <Money cents={s.freeShippingGapCents} /> more from {s.name} for free shipping
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="flex justify-between pt-1 text-base font-semibold">
+                <span>Total</span>
+                <Money cents={totals.data.totalCents} />
+              </div>
+            </div>
+          )}
           {caps.data && !caps.data.payments.provider && <p className="text-xs text-warn">Payments aren't connected on this server yet (needs STRIPE_SECRET_KEY).</p>}
           {caps.data?.payments.provider === "test" && <p className="text-xs text-warn">Test mode: checkout uses a test payment and no money moves.</p>}
           <ErrorNote error={err} />

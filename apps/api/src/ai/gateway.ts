@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { paymentRequired, notConfigured, HttpError } from "../lib/errors";
 import { emit } from "../realtime";
 import { textAdapters, ProviderError, type AdapterResult, type TextAdapter } from "./adapters";
+import { avatarAdapters, sttAdapters, ttsAdapters } from "./voice";
 import { creditBalance, creditsUsedSince, lockSeller } from "./ledger";
 
 export const FEATURE_CAPABILITY: Record<AiFeature, string> = {
@@ -31,9 +32,9 @@ export interface AiContext {
   idempotencyKey: string;
 }
 
-type Candidate = {
+type Candidate<A = TextAdapter> = {
   providerKey: string;
-  adapter: TextAdapter;
+  adapter: A;
   apiKey: string;
   modelId: string;
   inCost: number;
@@ -128,7 +129,7 @@ export async function authorize(ctx: AiContext) {
   return { credits, planKey: plan.key, planTier: plan.tier };
 }
 
-async function candidates(feature: AiFeature, planTier: number): Promise<Candidate[]> {
+async function candidates<A>(feature: AiFeature, planTier: number, registry: Record<string, A>): Promise<Candidate<A>[]> {
   const rules = await prisma.aiRoutingRule.findMany({
     where: { feature, enabled: true, minPlanTier: { lte: planTier } },
     orderBy: { priority: "asc" },
@@ -137,11 +138,11 @@ async function candidates(feature: AiFeature, planTier: number): Promise<Candida
     where: { id: { in: rules.map((r) => r.modelRefId) }, enabled: true, provider: { enabled: true } },
     include: { provider: true },
   });
-  const out: Candidate[] = [];
+  const out: Candidate<A>[] = [];
   for (const r of rules) {
     const m = models.find((x) => x.id === r.modelRefId);
     if (!m) continue;
-    const adapter = textAdapters[m.provider.adapter];
+    const adapter = registry[m.provider.adapter];
     const apiKey = process.env[m.provider.credentialEnvVar];
     if (!adapter || !apiKey) continue;
     out.push({
@@ -161,7 +162,7 @@ async function candidates(feature: AiFeature, planTier: number): Promise<Candida
 export async function featureAvailability() {
   const feats = Object.keys(FEATURE_CAPABILITY) as AiFeature[];
   const res: Record<string, boolean> = {};
-  for (const f of feats) res[f] = (await candidates(f, 99)).length > 0;
+  for (const f of feats) res[f] = (await candidates(f, 99, registryFor(f))).length > 0;
   return res;
 }
 
@@ -170,17 +171,35 @@ export async function featureAvailability() {
  * authorize → reserve credits (locked, idempotent) → call providers in routing order with fallback
  * → record usage + provider cost → refund the reservation if every provider failed.
  */
-export async function runText<T>(
+export function runText<T>(ctx: AiContext, call: (adapter: TextAdapter, apiKey: string, model: string) => Promise<AdapterResult<T>>) {
+  return runAi<TextAdapter, T>(ctx, textAdapters, call);
+}
+
+/** Adapter registry for a feature's capability: text models, voice, transcription or avatars. */
+export function registryFor(feature: AiFeature): Record<string, any> {
+  const cap = FEATURE_CAPABILITY[feature];
+  if (cap === "TEXT_TO_SPEECH") return ttsAdapters;
+  if (cap === "SPEECH_TO_TEXT") return sttAdapters;
+  if (cap === "AVATAR_VIDEO") return avatarAdapters;
+  return textAdapters;
+}
+
+/** The same metering pipeline for any adapter type. Cost = tokens × token price + units × unit price. */
+export async function runAi<A, T>(
   ctx: AiContext,
-  call: (adapter: TextAdapter, apiKey: string, model: string) => Promise<AdapterResult<T>>,
+  registry: Record<string, A>,
+  call: (adapter: A, apiKey: string, model: string) => Promise<AdapterResult<T>>,
 ): Promise<{ output: T; usageId: string; creditsCharged: number; provider: string; model: string }> {
   // Idempotent replay: if this key already succeeded, refuse to re-run/charge.
-  const prior = await prisma.aiCreditTransaction.findUnique({ where: { idempotencyKey: `usage:${ctx.idempotencyKey}:allowance` } })
-    ?? await prisma.aiCreditTransaction.findUnique({ where: { idempotencyKey: `usage:${ctx.idempotencyKey}:purchased` } });
-  if (prior) throw new HttpError(409, "duplicate_operation", "This AI operation was already processed.");
+  const duplicate = () => new HttpError(409, "duplicate_operation", "This AI operation was already processed.");
+  const prior =
+    (await prisma.aiUsageRecord.findUnique({ where: { idempotencyKey: ctx.idempotencyKey }, select: { id: true } })) ??
+    (await prisma.aiCreditTransaction.findUnique({ where: { idempotencyKey: `usage:${ctx.idempotencyKey}:allowance` } })) ??
+    (await prisma.aiCreditTransaction.findUnique({ where: { idempotencyKey: `usage:${ctx.idempotencyKey}:purchased` } }));
+  if (prior) throw duplicate();
 
   const auth = await authorize(ctx);
-  const cands = await candidates(ctx.feature, auth.planTier);
+  const cands = await candidates(ctx.feature, auth.planTier, registry);
   if (cands.length === 0) {
     await recordDenied(ctx, "no_provider", auth.planKey);
     throw notConfigured(`AI provider for ${ctx.feature}`, ["ANTHROPIC_API_KEY or another provider key", "enable a provider + routing rule in Admin → AI providers"]);
@@ -188,6 +207,7 @@ export async function runText<T>(
 
   const usage = await prisma.aiUsageRecord.create({
     data: {
+      idempotencyKey: ctx.idempotencyKey,
       sellerId: ctx.sellerId,
       userId: ctx.userId ?? null,
       planKey: auth.planKey,
@@ -199,6 +219,10 @@ export async function runText<T>(
       productId: ctx.productId,
       scanId: ctx.scanId,
     },
+  }).catch((e) => {
+    // Two concurrent calls with one key: the loser sees the unique index.
+    if (e?.code === "P2002") throw duplicate();
+    throw e;
   });
 
   // Reserve credits atomically (allowance first, then purchased).

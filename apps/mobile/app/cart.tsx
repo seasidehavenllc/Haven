@@ -9,7 +9,9 @@ const blank = { name: "", line1: "", line2: "", city: "", region: "", postalCode
 
 export default function Cart() {
   const c = useColors();
-  const { data: cart, loading, error, reload } = useApi<any>("/cart");
+  const { data: cart, loading, error, reload: reloadCart } = useApi<any>("/cart");
+  const totals = useApi<any>("/cart/totals");
+  const reload = () => (reloadCart(), totals.reload());
   const caps = useApi<any>("/capabilities");
   const [a, setA] = useState(blank);
   const [key] = useState(newKey);
@@ -29,7 +31,6 @@ export default function Cart() {
       </View>
     );
   const items = cart?.items ?? [];
-  const total = items.reduce((n: number, i: any) => n + i.variant.priceCents * i.quantity, 0);
   const f = (k: keyof typeof blank, label: string) => <Field label={label} value={a[k]} onChangeText={(v) => setA({ ...a, [k]: v })} />;
 
   return (
@@ -60,10 +61,27 @@ export default function Cart() {
             <View style={{ width: 90 }}>{f("region", "State")}</View>
           </View>
           {f("postalCode", "ZIP")}
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <T weight="700">Total</T>
-            <Money cents={total} />
-          </View>
+          {totals.data && (
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <T color={c.muted}>Items</T>
+                <Money cents={totals.data.subtotalCents} weight="500" />
+              </View>
+              {totals.data.sellers.map((sl: any) => (
+                <View key={sl.sellerId}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <T color={c.muted}>Shipping{totals.data.sellers.length > 1 ? ` from ${sl.name}` : ""}</T>
+                    {sl.shippingCents ? <Money cents={sl.shippingCents} weight="500" /> : <T color={c.ok}>Free</T>}
+                  </View>
+                  {sl.freeShippingGapCents > 0 && <T size={12} color={c.brandLight}>Add {(sl.freeShippingGapCents / 100).toFixed(2)} more from {sl.name} for free shipping</T>}
+                </View>
+              ))}
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <T weight="700">Total</T>
+                <Money cents={totals.data.totalCents} />
+              </View>
+            </View>
+          )}
           {caps.data && !caps.data.payments.provider && <Notice>Payments aren't connected on this server yet (needs STRIPE_SECRET_KEY).</Notice>}
           {caps.data?.payments.provider === "test" && <Notice>Test mode: checkout uses a test payment and no money moves.</Notice>}
           <ErrorNote error={err} />

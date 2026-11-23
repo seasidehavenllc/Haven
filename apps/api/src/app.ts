@@ -23,6 +23,11 @@ import { assistantRoutes } from "./modules/assistant";
 import { featureAvailability } from "./ai/gateway";
 import { activePaymentProvider } from "./payments";
 import { videoProvider } from "./video";
+import { shippingRoutes } from "./modules/shipping";
+import { activeShippingProvider } from "./shipping";
+import { socialConfigured } from "./lib/social";
+import { videoRoutes } from "./modules/videos";
+import { aiVoiceRoutes } from "./modules/aivoice";
 
 // BigInt (micro-dollar costs) → JSON number
 (BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
@@ -67,13 +72,16 @@ export async function buildApp() {
     payments: { provider: activePaymentProvider(), testMode: activePaymentProvider() === "test" || (!process.env.STRIPE_SECRET_KEY && testPaymentsAllowed) },
     video: { provider: videoProvider.id, configured: videoProvider.configured() },
     ai: await featureAvailability(),
-    shipping: { configured: !!(process.env.SHIPPO_API_KEY || process.env.EASYPOST_API_KEY) },
+    shipping: { configured: !!activeShippingProvider(), provider: activeShippingProvider()?.id ?? "manual", tracking: !!process.env.SHIPPING_WEBHOOK_TOKEN },
     push: { configured: true, provider: "expo" },
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM },
-    socialSignIn: { apple: !!process.env.APPLE_CLIENT_ID, google: !!process.env.GOOGLE_OAUTH_CLIENT_ID },
+    socialSignIn: { apple: socialConfigured("apple"), google: socialConfigured("google") },
   }));
 
   await app.register(notificationRoutes);
+  await app.register(shippingRoutes);
+  await app.register(videoRoutes);
+  await app.register(aiVoiceRoutes);
   await app.register(authRoutes);
   await app.register(sellerRoutes);
   await app.register(catalogRoutes);

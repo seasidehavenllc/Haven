@@ -3,11 +3,13 @@ import Link from "next/link";
 import { useApi } from "@/lib/hooks";
 import { Empty, Loading, ProductCard, Money } from "@/components/ui";
 import { StreamCard } from "@/components/StreamCard";
+import { VideoTile } from "@/components/VideoCard";
 
 export default function Home() {
   const streams = useApi<any[]>("/streams");
   const auctions = useApi<any[]>("/auctions");
   const products = useApi<{ items: any[] }>("/products?pageSize=24");
+  const videos = useApi<{ videos: any[] }>("/videos/feed?tab=foryou");
   const live = streams.data?.filter((s) => s.status === "LIVE") ?? [];
   return (
     <div className="space-y-12">
@@ -55,6 +57,22 @@ export default function Home() {
           <Empty title="Nobody is live right now">Followed sellers will notify you when they go live.</Empty>
         )}
       </section>
+
+      {!!videos.data?.videos.length && (
+        <section>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-display text-2xl font-semibold">Shoppable videos</h2>
+            <Link href="/videos" className="text-sm text-muted">
+              Watch all
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+            {videos.data.videos.slice(0, 6).map((v) => (
+              <VideoTile key={v.id} v={v} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {!!auctions.data?.length && (
         <section>

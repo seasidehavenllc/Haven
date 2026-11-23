@@ -8,7 +8,9 @@ import { parse } from "../lib/validate";
 import { emit } from "../realtime";
 import { broadcastInventory, productInclude } from "./catalog";
 import { createPaymentIntent, verifyStripeSignature } from "../payments";
-import { notify, createNotifications, deliver } from "../notify";
+import { notify } from "../notify";
+import { shippingCharge } from "../shipping";
+import { trackManualShipment } from "./shipping";
 
 type Line = { variantId: string; quantity: number; unitPriceCents?: number };
 
@@ -56,7 +58,16 @@ export async function placeOrder(opts: {
       if (!bySeller.has(v.product.sellerId)) bySeller.set(v.product.sellerId, []);
       bySeller.get(v.product.sellerId)!.push({ v, qty: l.quantity, price: l.unitPriceCents ?? v.priceCents });
     }
-    const total = [...bySeller.values()].flat().reduce((s, x) => s + x.price * x.qty, 0);
+    // Shipping comes from each seller's own rules, computed here on the server.
+    const profiles = await tx.sellerShippingProfile.findMany({ where: { sellerId: { in: [...bySeller.keys()] } } });
+    const totals = new Map(
+      [...bySeller].map(([sellerId, lines]) => {
+        const subtotal = lines.reduce((s, x) => s + x.price * x.qty, 0);
+        const shipping = shippingCharge(profiles.find((p) => p.sellerId === sellerId) ?? null, subtotal, lines.reduce((n, x) => n + x.qty, 0));
+        return [sellerId, { subtotal, shipping }];
+      }),
+    );
+    const total = [...totals.values()].reduce((s, t) => s + t.subtotal + t.shipping, 0);
     const checkout = await tx.checkoutSession.create({
       data: { buyerId: opts.buyerId, idempotencyKey: opts.idempotencyKey, provider: "pending", amountCents: total },
     });
@@ -66,7 +77,7 @@ export async function placeOrder(opts: {
         const ok = await takeStock(tx, l.v.id, l.qty, "SALE", checkout.id);
         if (!ok) throw conflict(`"${l.v.product.title}" (${l.v.name}) doesn't have enough stock`, { variantId: l.v.id, soldOut: true });
       }
-      const subtotal = lines.reduce((s, x) => s + x.price * x.qty, 0);
+      const { subtotal, shipping } = totals.get(sellerId)!;
       orders.push(
         await tx.order.create({
           data: {
@@ -75,7 +86,8 @@ export async function placeOrder(opts: {
             sellerId,
             subtotalCents: subtotal,
             platformFeeCents: Math.round((subtotal * feeBps) / 10000),
-            totalCents: subtotal,
+            shippingCents: shipping,
+            totalCents: subtotal + shipping,
             shippingAddress: opts.address as any,
             streamId: opts.streamId,
             affiliateCode: opts.affiliateCode,
@@ -158,6 +170,27 @@ async function getCart(userId: string) {
 export async function commerceRoutes(app: FastifyInstance) {
   app.get("/cart", async (req) => getCart(requireUser(req).id));
 
+  /** What checkout will charge right now, per seller, with shipping from each seller's rules. */
+  app.get("/cart/totals", async (req) => {
+    const cart = await getCart(requireUser(req).id);
+    const bySeller = new Map<string, { sellerId: string; name: string; subtotalCents: number; items: number }>();
+    for (const i of cart.items) {
+      const p = i.variant.product;
+      const cur = bySeller.get(p.sellerId) ?? { sellerId: p.sellerId, name: p.seller.storefront?.name ?? p.seller.businessName, subtotalCents: 0, items: 0 };
+      cur.subtotalCents += i.variant.priceCents * i.quantity;
+      cur.items += i.quantity;
+      bySeller.set(p.sellerId, cur);
+    }
+    const profiles = await prisma.sellerShippingProfile.findMany({ where: { sellerId: { in: [...bySeller.keys()] } } });
+    const sellers = [...bySeller.values()].map((s) => {
+      const p = profiles.find((x) => x.sellerId === s.sellerId) ?? null;
+      const shippingCents = shippingCharge(p, s.subtotalCents, s.items);
+      const freeShippingGapCents = p?.freeOverCents != null && shippingCents > 0 ? p.freeOverCents - s.subtotalCents : null;
+      return { ...s, shippingCents, freeShippingGapCents, totalCents: s.subtotalCents + shippingCents };
+    });
+    return { sellers, subtotalCents: sellers.reduce((n, s) => n + s.subtotalCents, 0), shippingCents: sellers.reduce((n, s) => n + s.shippingCents, 0), totalCents: sellers.reduce((n, s) => n + s.totalCents, 0) };
+  });
+
   app.post("/cart/items", async (req) => {
     const u = requireUser(req);
     const input = parse(CartItemInput, req.body);
@@ -209,7 +242,7 @@ export async function commerceRoutes(app: FastifyInstance) {
 
   app.get("/orders", async (req) => {
     const u = requireUser(req);
-    return prisma.order.findMany({ where: { buyerId: u.id }, include: { items: true, shipments: true, seller: { select: { businessName: true } } }, orderBy: { createdAt: "desc" } });
+    return prisma.order.findMany({ where: { buyerId: u.id }, include: { items: true, shipments: { include: { events: { orderBy: { occurredAt: "desc" } } } }, seller: { select: { businessName: true } } }, orderBy: { createdAt: "desc" } });
   });
 
   app.get("/seller/orders", async (req) => {
@@ -226,10 +259,11 @@ export async function commerceRoutes(app: FastifyInstance) {
     if (!o) throw notFound("Order");
     if (!["PAID", "FULFILLING"].includes(o.status)) throw conflict(`Order is ${o.status.toLowerCase()}`);
     await prisma.$transaction([
-      prisma.shipment.create({ data: { orderId: id, carrier: body.carrier, trackingNumber: body.trackingNumber, provider: "manual", status: "IN_TRANSIT" } }),
+      prisma.shipment.create({ data: { orderId: id, carrier: body.carrier, trackingNumber: body.trackingNumber.replace(/\s+/g, ""), provider: "manual", status: "IN_TRANSIT" } }),
       prisma.order.update({ where: { id }, data: { status: "SHIPPED" } }),
     ]);
     await notify({ userId: o.buyerId, type: "order.shipped", title: "Your order shipped", body: `${body.carrier} ${body.trackingNumber}`, link: `/orders`, data: { orderId: id } });
+    trackManualShipment(body.carrier, body.trackingNumber);
     return { ok: true };
   });
 

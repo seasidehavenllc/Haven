@@ -58,9 +58,14 @@ export function usePush(signedIn: boolean) {
 
 /** Server links are web paths; map the ones the app has screens for. */
 export function mobileRoute(link: string) {
-  const m = link.match(/^\/(live|p|auctions)\/([^/?#]+)/);
+  const m = link.match(/^\/(live|p|auctions|videos)\/([^/?#]+)/);
   if (m?.[1] === "live") return `/live/${m[2]}`;
+  if (m?.[1] === "videos") return `/video/${m[2]}`;
   if (m?.[1] === "p") return `/p/${m[2]}`;
+  if (m?.[1] === "auctions") return `/auctions/${m[2]}`;
+  if (link === "/auctions") return "/auctions";
+  const u = link.match(/^\/u\/([^/?#]+)/);
+  if (u) return `/u/${u[1]}`;
   if (link.startsWith("/orders")) return "/account";
   if (link.startsWith("/seller")) return "/sell";
   return "/notifications";

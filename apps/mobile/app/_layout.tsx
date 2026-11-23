@@ -20,6 +20,11 @@ export default function Root() {
           <Stack.Screen name="scan/[id]" options={{ title: "Review listing" }} />
           <Stack.Screen name="studio/[id]" options={{ title: "Studio" }} />
           <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+          <Stack.Screen name="auctions/index" options={{ title: "Auctions" }} />
+          <Stack.Screen name="auctions/[id]" options={{ title: "Auction" }} />
+          <Stack.Screen name="u/[handle]" options={{ title: "" }} />
+          <Stack.Screen name="video/[id]" options={{ title: "", headerTransparent: true }} />
+          <Stack.Screen name="video/new" options={{ title: "Post a video" }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

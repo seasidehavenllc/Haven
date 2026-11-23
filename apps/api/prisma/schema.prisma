@@ -36,27 +36,30 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  sessions      Session[]
-  oauthAccounts OAuthAccount[]
-  seller        SellerAccount?
-  staffOf       SellerStaff[]
-  addresses     Address[]
-  cart          Cart?
-  orders        Order[]
-  reviews       Review[]
-  bids          AuctionBid[]
-  chatMessages  StreamChatMessage[]
-  following     Follow[]            @relation("follower")
-  followers     Follow[]            @relation("followee")
-  wishlist      WishlistItem[]
-  notifications Notification[]
-  pushDevices   PushDevice[]
+  sessions               Session[]
+  oauthAccounts          OAuthAccount[]
+  seller                 SellerAccount?
+  staffOf                SellerStaff[]
+  addresses              Address[]
+  cart                   Cart?
+  orders                 Order[]
+  reviews                Review[]
+  bids                   AuctionBid[]
+  chatMessages           StreamChatMessage[]
+  following              Follow[]                @relation("follower")
+  followers              Follow[]                @relation("followee")
+  wishlist               WishlistItem[]
+  notifications          Notification[]
+  pushDevices            PushDevice[]
   notificationPreference NotificationPreference?
-  affiliate     Affiliate?
-  reportsFiled  Report[]            @relation("reporter")
-  auditLogs     AuditLog[]
-  sentMessages  DirectMessage[]     @relation("sender")
-  recvMessages  DirectMessage[]     @relation("recipient")
+  videos                 Video[]
+  videoLikes             VideoLike[]
+  videoComments          VideoComment[]
+  affiliate              Affiliate?
+  reportsFiled           Report[]                @relation("reporter")
+  auditLogs              AuditLog[]
+  sentMessages           DirectMessage[]         @relation("sender")
+  recvMessages           DirectMessage[]         @relation("recipient")
 }
 
 model Session {
@@ -116,6 +119,8 @@ model SellerAccount {
   campaigns        AffiliateCampaign[]
   payouts          Payout[]
   aiBillingCharges AiBillingCharge[]
+  shippingProfile  SellerShippingProfile?
+  ledger           SellerLedgerEntry[]
 }
 
 model SellerStaff {
@@ -212,6 +217,7 @@ model Product {
   streamProducts StreamProduct[]
   auctions       Auction[]
   wishlistedBy   WishlistItem[]
+  videoTags      VideoProduct[]
   sourceScan     ProductScan?     @relation(fields: [sourceScanId], references: [id])
 
   @@index([sellerId, status])
@@ -440,16 +446,103 @@ model Payout {
 }
 
 model Shipment {
-  id             String   @id @default(cuid())
+  id             String          @id @default(cuid())
   orderId        String
-  order          Order    @relation(fields: [orderId], references: [id])
+  order          Order           @relation(fields: [orderId], references: [id])
   carrier        String?
+  service        String?
   trackingNumber String?
+  trackingUrl    String?
   labelUrl       String?
   provider       String? // shippo | easypost | manual
-  status         String   @default("PENDING")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  /// The provider's id for the label (Shippo transaction / EasyPost shipment).
+  providerRef    String?
+  /// What the label cost the platform, charged back to the seller in SellerLedgerEntry.
+  labelCostCents Int?
+  /// LABEL_CREATED | IN_TRANSIT | OUT_FOR_DELIVERY | DELIVERED | RETURNED | FAILURE | UNKNOWN
+  status         String          @default("PENDING")
+  estDeliveryAt  DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  events         ShipmentEvent[]
+
+  @@index([trackingNumber])
+  @@index([orderId])
+}
+
+/// Tracking history as reported by the carrier, via provider webhooks. Append-only.
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status      String
+  description String?
+  location    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([shipmentId, status, occurredAt])
+}
+
+/// Rates a seller fetched for an order. Buying a label must use a rate from a quote for that order.
+model ShippingQuote {
+  id          String    @id @default(cuid())
+  orderId     String
+  provider    String
+  /// Provider shipment id the rates belong to.
+  shipmentRef String
+  rates       Json
+  parcel      Json
+  /// Set when a label is bought from this quote, so a quote can only be used once.
+  purchasedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+/// How a seller charges buyers for shipping, and where they ship from.
+model SellerShippingProfile {
+  sellerId               String        @id
+  seller                 SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  /// Charged once per order.
+  flatRateCents          Int           @default(0)
+  /// Added for each item after the first.
+  perAdditionalItemCents Int           @default(0)
+  /// Orders whose subtotal reaches this ship free. Null means never free.
+  freeOverCents          Int?
+  handlingDays           Int           @default(2)
+  fromName               String?
+  fromCompany            String?
+  fromLine1              String?
+  fromLine2              String?
+  fromCity               String?
+  fromRegion             String?
+  fromPostalCode         String?
+  fromCountry            String?       @default("US")
+  fromPhone              String?
+  /// Default box when a seller doesn't enter one, in inches.
+  parcelLengthIn         Float         @default(10)
+  parcelWidthIn          Float         @default(8)
+  parcelHeightIn         Float         @default(4)
+  updatedAt              DateTime      @updatedAt
+}
+
+/// Append-only money ledger between the platform and a seller, outside of order proceeds
+/// (shipping labels the platform bought for the seller, adjustments). Netted against payouts.
+model SellerLedgerEntry {
+  id             String        @id @default(cuid())
+  sellerId       String
+  seller         SellerAccount @relation(fields: [sellerId], references: [id])
+  /// Negative: the seller owes the platform. Positive: the platform owes the seller.
+  amountCents    Int
+  kind           String // LABEL_PURCHASE | LABEL_REFUND | ADJUSTMENT
+  refId          String?
+  memo           String?
+  idempotencyKey String        @unique
+  createdAt      DateTime      @default(now())
+
+  @@index([sellerId, createdAt])
 }
 
 // ───────────────────────── Livestreams ─────────────────────────
@@ -524,6 +617,8 @@ model StreamChatMessage {
   user      User?      @relation(fields: [userId], references: [id])
   body      String
   isAi      Boolean    @default(false) // always disclosed in UI
+  /// Spoken version of an AI message (text to speech), played to viewers who have sound on.
+  audioUrl  String?
   hidden    Boolean    @default(false)
   createdAt DateTime   @default(now())
 
@@ -805,6 +900,8 @@ model AiUsageRecord {
   productId          String?
   scanId             String?
   isTest             Boolean        @default(false)
+  /// The caller's operation key. Unique, so the same operation is never run or billed twice, even when it costs 0 credits.
+  idempotencyKey     String?        @unique
   createdAt          DateTime       @default(now())
 
   creditTxns AiCreditTransaction[]
@@ -855,7 +952,9 @@ model Notification {
   @@index([userId, createdAt])
 }
 
-/** A phone registered for push notifications (Expo push token). */
+/**
+ * A phone registered for push notifications (Expo push token).
+ */
 model PushDevice {
   id         String   @id @default(cuid())
   userId     String
@@ -934,4 +1033,88 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
+}
+
+// ───────────────────────── Short-form video ─────────────────────────
+
+enum VideoStatus {
+  READY
+  REMOVED // by the creator or moderation
+}
+
+model Video {
+  id            String      @id @default(cuid())
+  creatorId     String
+  creator       User        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  caption       String      @default("")
+  mediaUrl      String
+  posterUrl     String?
+  mime          String
+  bytes         Int
+  /// Measured with ffprobe when FFPROBE_PATH is set, otherwise as reported by the uploading app.
+  durationSec   Float?
+  width         Int?
+  height        Int?
+  status        VideoStatus @default(READY)
+  removedReason String?
+  /// Denormalized counters, only ever changed together with the rows they count.
+  likeCount     Int         @default(0)
+  commentCount  Int         @default(0)
+  /// Unique viewers per day (signed-in user or hashed IP), never raw plays.
+  viewCount     Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  products VideoProduct[]
+  likes    VideoLike[]
+  comments VideoComment[]
+  views    VideoView[]
+
+  @@index([status, createdAt])
+  @@index([creatorId, createdAt])
+}
+
+/// Products shown as "shop" cards on a video.
+model VideoProduct {
+  videoId   String
+  video     Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  position  Int     @default(0)
+
+  @@id([videoId, productId])
+}
+
+model VideoLike {
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([videoId, userId])
+  @@index([userId, createdAt])
+}
+
+model VideoComment {
+  id        String   @id @default(cuid())
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  hidden    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([videoId, createdAt])
+}
+
+model VideoView {
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  /// "u:<userId>" or "ip:<sha256(ip + day)>"
+  viewerKey String
+  day       String // YYYY-MM-DD (UTC)
+  createdAt DateTime @default(now())
+
+  @@id([videoId, viewerKey, day])
 }
