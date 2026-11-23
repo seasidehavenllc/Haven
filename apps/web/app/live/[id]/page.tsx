@@ -20,7 +20,11 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     if (s?.chat) setChat(s.chat);
   }, [s?.id]);
-  useEffect(() => chatEnd.current?.scrollIntoView({ block: "end" }), [chat.length]);
+  // Scroll only the chat box, not the whole page (scrollIntoView jumped phones past the video).
+  useEffect(() => {
+    const box = chatEnd.current?.parentElement;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [chat.length]);
 
   useRealtime(`stream:${id}`, {
     "stream:chat": (m: any) => setChat((c) => (m.hidden ? c.filter((x) => x.id !== m.id) : [...c.slice(-199), m])),
@@ -73,7 +77,7 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
           </div>
           {s.aiDisclosure && <div className="absolute bottom-3 left-3 right-3 rounded-xl bg-ai/90 px-3 py-2 text-xs font-semibold text-white">🤖 {s.aiDisclosure}</div>}
           {pinned && (
-            <div className="absolute bottom-14 right-3 w-60 rounded-2xl bg-card p-3 text-ink shadow-xl">
+            <div className="absolute bottom-14 right-3 hidden w-60 rounded-2xl bg-card p-3 text-ink shadow-xl sm:block">
               <div className="flex gap-2">
                 <div className="h-14 w-14 overflow-hidden rounded-xl bg-line">{pinned.media[0] && <img src={pinned.media[0].url} alt="" className="h-full w-full object-cover" />}</div>
                 <div className="min-w-0 flex-1 text-sm">
@@ -89,6 +93,20 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
             </div>
           )}
         </div>
+        {pinned && (
+          <div className="panel flex items-center gap-3 p-3 sm:hidden">
+            <div className="h-14 w-14 flex-none overflow-hidden rounded-xl bg-line">{pinned.media[0] && <img src={pinned.media[0].url} alt="" className="h-full w-full object-cover" />}</div>
+            <div className="min-w-0 flex-1 text-sm">
+              <div className="line-clamp-1 font-medium">{pinned.title}</div>
+              <div className="font-semibold">
+                <Money cents={minPrice(pinned)} />
+              </div>
+            </div>
+            <button className="btn-primary" disabled={stock(pinned) === 0} onClick={() => buy(pinned.variants.find((v: any) => v.quantity > 0)?.id)}>
+              {stock(pinned) === 0 ? "Sold out" : stock(pinned) <= 3 ? `Buy · ${stock(pinned)} left` : "Buy now"}
+            </button>
+          </div>
+        )}
         <div>
           <h1 className="font-display text-2xl font-bold">{s.title}</h1>
           <Link href={`/store/${s.seller.storefront?.slug}`} className="text-sm text-muted">

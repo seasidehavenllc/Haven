@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
@@ -100,7 +100,8 @@ function Overview() {
 function Profitability() {
   const [days, setDays] = useState(30);
   const [includeTest, setIncludeTest] = useState(false);
-  const from = new Date(Date.now() - days * 864e5).toISOString();
+  // Computed once per range choice; recomputing on every render changed the URL and refetched in a loop.
+  const from = useMemo(() => new Date(Date.now() - days * 864e5).toISOString(), [days]);
   const { data: p, loading } = useApi<any>(`/admin/ai/profitability?from=${encodeURIComponent(from)}&includeTest=${includeTest}`, [days, includeTest]);
   if (loading || !p) return <Loading />;
   const t = p.totals;
