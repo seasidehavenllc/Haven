@@ -22,12 +22,16 @@ export default function Studio({ params }: { params: Promise<{ id: string }> }) 
   const [answers, setAnswers] = useState<{ q: string; a: string }[]>([]);
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
+  const [voiceReplies, setVoiceReplies] = useState(false);
+  const [say, setSay] = useState("");
+  const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
     if (s?.chat) setChat(s.chat);
   }, [s?.id]);
   useRealtime(`stream:${id}`, {
     "stream:chat": (m: any) => setChat((c) => (m.hidden ? c.filter((x) => x.id !== m.id) : [...c.slice(-199), m])),
+    "stream:chat:update": (m: any) => setChat((c) => c.map((x) => (x.id === m.id ? { ...x, ...m } : x))),
     "stream:viewers": (p: any) => setData((d: any) => d && { ...d, viewers: p.count }),
     "inventory:changed": () => reload(),
     "stream:menu": () => reload(),
@@ -38,6 +42,34 @@ export default function Studio({ params }: { params: Promise<{ id: string }> }) 
   if (error || !s) return <ErrorNote error={error} />;
   const banner = MODE_BANNER[s.mode]!;
   const act = (path: string, body: unknown = {}, method = "POST") => api(`/seller/streams/${id}${path}`, { method, body }).then(() => { reload(); log.reload(); }).catch(setErr);
+
+  const hasVoice = !!s.aiAgent?.voiceId;
+  const canSpeak = s.mode === "AI_HOST" || (s.mode === "HUMAN_AI_COHOST" && s.aiPublicSpeech);
+
+  async function aiReply(messageId: string) {
+    setErr(null);
+    try {
+      const r = await api(`/seller/streams/${id}/ai/respond`, { body: { messageId, speak: voiceReplies && hasVoice } });
+      if (r.voiceError) setErr({ message: `The answer was posted as text. Voice didn't work: ${r.voiceError}` });
+      log.reload();
+    } catch (e) {
+      setErr(e);
+    }
+  }
+
+  async function speak(body: { text?: string; messageId?: string }) {
+    setSpeaking(true);
+    setErr(null);
+    try {
+      await api(`/seller/streams/${id}/ai/speak`, { body });
+      setSay("");
+      log.reload();
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setSpeaking(false);
+    }
+  }
 
   async function ask(question: string) {
     setAsking(true);
@@ -144,10 +176,20 @@ export default function Studio({ params }: { params: Promise<{ id: string }> }) 
                 <div key={m.id} className="group flex items-start gap-2">
                   <div className="flex-1">
                     <b className={m.isAi ? "text-ai" : ""}>{m.isAi ? "AI assistant" : m.user?.displayName}</b> {m.body}
+                    {m.audioUrl && (
+                      <button className="ml-1 text-xs text-ai" title="Play what the AI said" onClick={() => new Audio(m.audioUrl).play().catch(() => {})}>
+                        🔊
+                      </button>
+                    )}
                   </div>
-                  {!m.isAi && aiOn && (s.aiPublicSpeech || s.mode === "AI_HOST") && (
-                    <button className="hidden text-xs text-ai group-hover:block" onClick={() => act("/ai/respond", { messageId: m.id })}>
-                      AI reply
+                  {!m.isAi && aiOn && canSpeak && (
+                    <button className="hidden text-xs text-ai group-hover:block" onClick={() => aiReply(m.id)}>
+                      {voiceReplies && hasVoice ? "AI voice reply" : "AI reply"}
+                    </button>
+                  )}
+                  {m.isAi && !m.audioUrl && hasVoice && canSpeak && s.status === "LIVE" && (
+                    <button className="hidden text-xs text-ai group-hover:block" disabled={speaking} onClick={() => speak({ messageId: m.id })}>
+                      Say it
                     </button>
                   )}
                   <button className="hidden text-xs text-muted group-hover:block" onClick={() => act(`/chat/${m.id}/hide`)}>
@@ -189,7 +231,42 @@ export default function Studio({ params }: { params: Promise<{ id: string }> }) 
                     </button>
                   ) : null}
                 </div>
-                {s.cohostMode === "TAKEOVER" && <p className="text-xs text-warn">Takeover is recorded. Autonomous AI presenting (voice + avatar) ships in the next phase, so the AI can only answer chat for now.</p>}
+                {s.cohostMode === "TAKEOVER" && <p className="text-xs text-warn">Takeover is recorded. The AI answers chat and, with a voice, speaks its answers. It doesn't present products on its own yet.</p>}
+                {canSpeak && (
+                  <div className="space-y-2 rounded-xl border border-ai/30 p-3">
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      AI voice
+                      {s.aiAgent && !hasVoice && (
+                        <a href="/seller/ai-agents" className="text-xs font-normal text-ai underline">
+                          Give {s.aiAgent.name} a voice
+                        </a>
+                      )}
+                    </div>
+                    {hasVoice ? (
+                      <>
+                        <label className="flex items-center justify-between text-sm">
+                          Speak AI replies out loud
+                          <input type="checkbox" checked={voiceReplies} onChange={(e) => setVoiceReplies(e.target.checked)} />
+                        </label>
+                        <form
+                          className="flex gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (say.trim()) speak({ text: say.trim() });
+                          }}
+                        >
+                          <input className="input" placeholder="Have the AI say…" value={say} onChange={(e) => setSay(e.target.value)} maxLength={1200} disabled={s.status !== "LIVE"} />
+                          <button className="btn-ai" disabled={speaking || s.status !== "LIVE"}>
+                            {speaking ? "…" : "Say"}
+                          </button>
+                        </form>
+                        <p className="text-[11px] text-muted">Speech uses AI credits (by length) and plays for viewers who have sound on. It's labelled as AI.</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted">{s.aiAgent ? "This AI salesperson has no voice yet, so it answers in text." : "Assign an AI salesperson with a voice to have the AI speak."}</p>
+                    )}
+                  </div>
+                )}
                 <button className={listening ? "btn-ai w-full" : "btn-ghost w-full"} onClick={toggleListening}>
                   {listening ? "🎙 Listening — say “AI, …”" : "🎙 Listen to my mic"}
                 </button>

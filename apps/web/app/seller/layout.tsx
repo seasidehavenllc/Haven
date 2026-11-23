@@ -12,6 +12,7 @@ const tabs = [
   ["/seller/streams", "Live studio"],
   ["/seller/orders", "Orders"],
   ["/seller/shipping", "Shipping"],
+  ["/seller/ai-agents", "AI salespeople"],
   ["/seller/ai", "AI plan & credits"],
 ];
 
@@ -37,7 +38,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         </div>
         <nav className="flex gap-1 overflow-x-auto md:flex-col">
           {tabs.map(([href, label]) => {
-            const active = href === "/seller" ? path === href : path.startsWith(href!);
+            const active = href === "/seller" ? path === href : path === href || path.startsWith(`${href}/`);
             return (
               <Link key={href} href={href!} className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium ${active ? "bg-brand/15 text-brand-light ring-1 ring-brand/40" : "hover:bg-card"}`}>
                 {label}

@@ -14,6 +14,7 @@ Each pull request builds on the one before it, so merge them oldest first.
 3. **#4** Shipping (seller rates, labels, tracking).
 4. **#5** Sign in with Apple and Google.
 5. **#6** Short-form shoppable video feed.
+6. **#7** AI host voice, mic transcription and avatar sessions, plus the AI salespeople page.
 
 ## Decisions
 
@@ -26,6 +27,9 @@ Each pull request builds on the one before it, so merge them oldest first.
 - **Who pays for labels.** Labels are bought on Haven's Shippo/EasyPost account and the cost is recorded
   against the seller, to be taken out of payouts. That deduction gets wired up when Stripe payouts are
   connected. Confirm that's how you want it.
+- **AI voice prices.** Voice is now 8 credits per 1,000 characters (about $0.08) because ElevenLabs costs
+  around $0.06 per 1,000 characters at list price; the old 3 credits lost money. Transcription stays 2
+  credits a minute and avatars 25 a minute. Change these in Admin if you'd like different margins.
 
 ## Accounts and keys
 
@@ -39,6 +43,9 @@ Each pull request builds on the one before it, so merge them oldest first.
 | Shipping labels and live rates | Shippo or EasyPost account. Then point its tracking webhook at `https://<api>/webhooks/shipping/shippo?token=...` (or `/easypost`) | `SHIPPO_API_KEY` or `EASYPOST_API_KEY`, `SHIPPING_WEBHOOK_TOKEN` |
 | Sign in with Apple | Apple Developer account ($99/yr). Turn on Sign in with Apple for the app id `com.seasidehaven.haven`, and create a Services ID for the website with its return URL | API: `APPLE_CLIENT_ID` (bundle id and Services ID, comma-separated). Web: `NEXT_PUBLIC_APPLE_SERVICES_ID`, `NEXT_PUBLIC_APPLE_REDIRECT_URI` |
 | Sign in with Google | Google Cloud project with OAuth client ids for web, iOS and Android | API: `GOOGLE_OAUTH_CLIENT_ID` (all three, comma-separated). Web: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Mobile: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` |
+| AI voice for AI hosts and co-hosts | ElevenLabs account (or use your OpenAI key). Then turn the provider on in Admin → AI providers | `ELEVENLABS_API_KEY` (or `OPENAI_API_KEY`) |
+| Server-side mic transcription (the browser's own speech recognition works without it) | Deepgram account | `DEEPGRAM_API_KEY`, then turn Deepgram on in Admin |
+| Video avatar for AI-hosted shows | HeyGen account with streaming avatars. Sessions and billing are built; the on-screen avatar player still needs HeyGen's web SDK, which Claude adds once there's a key to test with | `HEYGEN_API_KEY`, then turn HeyGen on in Admin |
 | Barcode lookups in the scanner | UPCitemdb key (optional) | `UPCITEMDB_USER_KEY` |
 | App Store and Play Store builds | Apple Developer and Google Play Console accounts | |
 

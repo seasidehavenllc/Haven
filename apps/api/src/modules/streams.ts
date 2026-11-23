@@ -107,7 +107,7 @@ export async function streamRoutes(app: FastifyInstance) {
       include: {
         ...menuInclude,
         seller: { select: { id: true, userId: true, businessName: true, storefront: { select: { slug: true, name: true, logoUrl: true } } } },
-        aiAgent: { select: { name: true, personality: true } },
+        aiAgent: { select: { name: true, personality: true, voiceId: true } },
         chat: { where: { hidden: false }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { handle: true, displayName: true } } } },
         auctions: { where: { status: { in: ["LIVE", "SCHEDULED"] } } },
       },
