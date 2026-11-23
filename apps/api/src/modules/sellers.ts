@@ -7,6 +7,7 @@ import { conflict, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
 import { grantAllowance } from "../ai/ledger";
+import { notify } from "../notify";
 
 const BecomeSeller = z.object({ businessName: z.string().min(2).max(120), storefront: StorefrontInput });
 
@@ -84,7 +85,12 @@ export async function sellerRoutes(app: FastifyInstance) {
     const u = requireUser(req);
     const { id } = req.params as { id: string };
     if (id === u.id) throw conflict("You cannot follow yourself");
-    await prisma.follow.upsert({ where: { followerId_followeeId: { followerId: u.id, followeeId: id } }, update: {}, create: { followerId: u.id, followeeId: id } });
+    if (!(await prisma.user.findUnique({ where: { id }, select: { id: true } }))) throw notFound("User");
+    const n = await prisma.$executeRaw`INSERT INTO "Follow" ("followerId", "followeeId") VALUES (${u.id}, ${id}) ON CONFLICT DO NOTHING`;
+    if (n) {
+      const me = await prisma.user.findUniqueOrThrow({ where: { id: u.id }, select: { displayName: true, handle: true } });
+      await notify({ userId: id, type: "social.follow", title: `${me.displayName} followed you`, link: `/u/${me.handle}`, data: { userId: u.id } });
+    }
     return { following: true };
   });
   app.delete("/users/:id/follow", async (req) => {

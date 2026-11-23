@@ -22,6 +22,7 @@ export function Nav() {
         </Link>
         <nav className="hidden gap-4 text-sm font-medium md:flex">
           <Link href="/live">Live</Link>
+          <Link href="/videos">Videos</Link>
           <Link href="/auctions">Auctions</Link>
           <Link href="/assistant" className="text-ai">
             Ask AI

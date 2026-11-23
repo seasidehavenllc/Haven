@@ -17,6 +17,7 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: c.brand, tabBarStyle: { backgroundColor: c.card, borderTopColor: c.line }, headerStyle: { backgroundColor: c.paper }, headerTintColor: c.ink, sceneStyle: { backgroundColor: c.paper }, headerRight: () => <Bell /> }}>
       <Tabs.Screen name="index" options={{ title: "Shop", headerTitle: () => <BrandTitle />, tabBarIcon: icon("◎") }} />
+      <Tabs.Screen name="videos" options={{ title: "Videos", headerShown: false, tabBarIcon: icon("▶") }} />
       <Tabs.Screen name="live" options={{ title: "Live", tabBarIcon: icon("●") }} />
       <Tabs.Screen name="sell" options={{ title: "Sell", tabBarIcon: icon("＋") }} />
       <Tabs.Screen name="account" options={{ title: "Me", tabBarIcon: icon("☺") }} />

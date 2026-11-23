@@ -11,14 +11,16 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of items to create listings.",
-        "NSPhotoLibraryUsageDescription": "Choose photos of items to create listings."
+        "NSPhotoLibraryUsageDescription": "Choose photos of items to create listings.",
+        "NSMicrophoneUsageDescription": "Record sound with your videos."
       },
       "usesAppleSignIn": true
     },
     "android": {
       "package": "com.seasidehaven.haven",
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -39,7 +41,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "Take photos of items to create listings.",
-          "photosPermission": "Choose photos of items to create listings."
+          "photosPermission": "Choose photos of items to create listings.",
+          "microphonePermission": "Record sound with your videos."
         }
       ],
       [
@@ -49,7 +52,8 @@
           "imageWidth": 160,
           "backgroundColor": "#03060a"
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": false

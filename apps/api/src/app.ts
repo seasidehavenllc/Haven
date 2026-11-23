@@ -26,6 +26,7 @@ import { videoProvider } from "./video";
 import { shippingRoutes } from "./modules/shipping";
 import { activeShippingProvider } from "./shipping";
 import { socialConfigured } from "./lib/social";
+import { videoRoutes } from "./modules/videos";
 
 // BigInt (micro-dollar costs) → JSON number
 (BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
@@ -78,6 +79,7 @@ export async function buildApp() {
 
   await app.register(notificationRoutes);
   await app.register(shippingRoutes);
+  await app.register(videoRoutes);
   await app.register(authRoutes);
   await app.register(sellerRoutes);
   await app.register(catalogRoutes);
