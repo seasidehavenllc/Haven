@@ -11,6 +11,7 @@ const tabs = [
   ["/seller/products", "Products"],
   ["/seller/streams", "Live studio"],
   ["/seller/orders", "Orders"],
+  ["/seller/shipping", "Shipping"],
   ["/seller/ai", "AI plan & credits"],
 ];
 

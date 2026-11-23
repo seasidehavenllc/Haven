@@ -27,15 +27,41 @@ export default function Orders() {
             ))}
           </ul>
           {o.shipments.map((s: any) => (
-            <div key={s.id} className="mt-2 text-xs">
-              Shipped via {s.carrier}: <b>{s.trackingNumber}</b>
+            <div key={s.id} className="mt-3 space-y-1 rounded-xl bg-line/40 p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="chip bg-line">{s.status.replace(/_/g, " ").toLowerCase()}</span>
+                <span>
+                  {s.carrier} {s.service}{" "}
+                  {s.trackingUrl ? (
+                    <a href={s.trackingUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                      {s.trackingNumber}
+                    </a>
+                  ) : (
+                    <b>{s.trackingNumber}</b>
+                  )}
+                </span>
+                {s.estDeliveryAt && !s.deliveredAt && <span className="text-muted">Expected {new Date(s.estDeliveryAt).toLocaleDateString()}</span>}
+              </div>
+              {s.events?.slice(0, 4).map((e: any) => (
+                <div key={e.id} className="text-muted">
+                  {new Date(e.occurredAt).toLocaleString()} · {e.description ?? e.status.toLowerCase()}
+                  {e.location ? ` · ${e.location}` : ""}
+                </div>
+              ))}
             </div>
           ))}
           <div className="mt-2 flex justify-between border-t border-line pt-2">
             <span className="text-muted">{new Date(o.createdAt).toLocaleDateString()}</span>
-            <b>
-              <Money cents={o.totalCents} />
-            </b>
+            <span>
+              {o.shippingCents > 0 && (
+                <span className="mr-2 text-xs text-muted">
+                  incl. <Money cents={o.shippingCents} /> shipping
+                </span>
+              )}
+              <b>
+                <Money cents={o.totalCents} />
+              </b>
+            </span>
           </div>
         </div>
       ))}

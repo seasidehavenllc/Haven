@@ -71,7 +71,12 @@ function Profile() {
             </View>
           </View>
           {o.items.map((i: any) => <T key={i.id} size={13} color={c.muted}>{i.quantity} × {i.titleSnapshot}</T>)}
-          {o.shipments?.map((sh: any) => <T key={sh.id} size={12}>Shipped{sh.carrier ? ` via ${sh.carrier}` : ""}{sh.trackingNumber ? ` · ${sh.trackingNumber}` : ""}</T>)}
+          {o.shipments?.map((sh: any) => (
+            <View key={sh.id} style={{ gap: 2 }}>
+              <T size={12} weight="600">{sh.status.replace(/_/g, " ").toLowerCase()}{sh.carrier ? ` · ${sh.carrier}` : ""}{sh.trackingNumber ? ` ${sh.trackingNumber}` : ""}</T>
+              {sh.events?.[0] && <T size={12} color={c.muted}>{new Date(sh.events[0].occurredAt).toLocaleDateString()} · {sh.events[0].description ?? sh.events[0].status.toLowerCase()}{sh.events[0].location ? ` · ${sh.events[0].location}` : ""}</T>}
+            </View>
+          ))}
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <T size={12} color={c.muted}>{new Date(o.createdAt).toLocaleDateString()}</T>
             <Money cents={o.totalCents} />
