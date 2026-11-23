@@ -11,7 +11,7 @@ import { emit } from "../realtime";
 export type NotifyInput = { userId: string; type: string; title: string; body?: string | null; link?: string | null; data?: Record<string, unknown> };
 
 /** Types that are important enough to email. Everything else stays in-app and push. */
-const EMAIL_TYPES = new Set(["order.new", "order.shipped", "order.delivered", "auction.won", "billing.payment_failed", "moderation.product_removed", "payout.sent"]);
+const EMAIL_TYPES = new Set(["order.new", "order.shipped", "order.delivered", "auction.won", "billing.payment_failed", "moderation.product_removed", "moderation.video_removed", "payout.sent"]);
 
 /** Store notifications, respecting muted types. Use inside a transaction, then call `deliver` after commit. */
 export async function createNotifications(db: Tx | typeof prisma, items: NotifyInput[]): Promise<Notification[]> {

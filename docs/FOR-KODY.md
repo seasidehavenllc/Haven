@@ -9,10 +9,11 @@ Keys go in the API server's environment (see `apps/api/.env.example`), never in 
 
 Each pull request builds on the one before it, so merge them oldest first.
 
-1. **#2** Rebrand to Haven, plus preview fixes.
-2. **#3** Notifications (inbox, push, email, settings).
+1. ~~#2 Preview fixes~~ (merged). Its last commit, the Haven rebrand, was pushed after you merged, so it now rides along in #3.
+2. **#3** Rebrand plus notifications (inbox, push, email, settings).
 3. **#4** Shipping (seller rates, labels, tracking).
 4. **#5** Sign in with Apple and Google.
+5. **#6** Short-form shoppable video feed.
 
 ## Decisions
 
@@ -40,6 +41,12 @@ Each pull request builds on the one before it, so merge them oldest first.
 | Sign in with Google | Google Cloud project with OAuth client ids for web, iOS and Android | API: `GOOGLE_OAUTH_CLIENT_ID` (all three, comma-separated). Web: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Mobile: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` |
 | Barcode lookups in the scanner | UPCitemdb key (optional) | `UPCITEMDB_USER_KEY` |
 | App Store and Play Store builds | Apple Developer and Google Play Console accounts | |
+
+## Video hosting (later, when traffic grows)
+
+Videos are stored as uploaded and played straight from storage. That's fine for launch. When volume grows,
+pick Mux or Cloudflare Stream for adaptive streaming and thumbnails, and set `FFPROBE_PATH` on the server
+so it measures every upload itself.
 
 ## Brand
 

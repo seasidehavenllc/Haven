@@ -19,8 +19,10 @@ const ALLOWED = new Map([
   ["image/heic", "heic"],
   ["video/mp4", "mp4"],
   ["video/quicktime", "mov"],
+  ["video/webm", "webm"],
 ]);
 const MAX_IMAGE = 15 * 1024 * 1024;
+export const MAX_VIDEO = 100 * 1024 * 1024;
 
 /** Sniff magic bytes; never trust the client-provided content type alone. */
 function sniff(buf: Buffer): string | null {
@@ -30,6 +32,7 @@ function sniff(buf: Buffer): string | null {
   const ftyp = buf.subarray(4, 12).toString();
   if (ftyp.startsWith("ftypheic") || ftyp.startsWith("ftypheix") || ftyp.startsWith("ftypmif1")) return "image/heic";
   if (ftyp.startsWith("ftypqt")) return "video/quicktime";
+  if (buf.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return "video/webm";
   if (ftyp.startsWith("ftyp")) return "video/mp4";
   return null;
 }
@@ -38,8 +41,9 @@ export const uploadRoot = resolve(env.UPLOAD_DIR);
 
 export async function storeUpload(bytes: Buffer, prefix: string): Promise<StoredFile> {
   const mime = sniff(bytes);
-  if (!mime || !ALLOWED.has(mime)) throw badRequest("Unsupported file type. Use JPEG, PNG, WebP, HEIC, MP4 or MOV.");
+  if (!mime || !ALLOWED.has(mime)) throw badRequest("Unsupported file type. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.");
   if (mime.startsWith("image/") && bytes.length > MAX_IMAGE) throw badRequest("Image exceeds 15 MB");
+  if (mime.startsWith("video/") && bytes.length > MAX_VIDEO) throw badRequest("Video exceeds 100 MB");
   const sha = createHash("sha256").update(bytes).digest("hex");
   const key = `${prefix}/${randomUUID()}.${ALLOWED.get(mime)}`;
   if (env.STORAGE_DRIVER === "s3") {
