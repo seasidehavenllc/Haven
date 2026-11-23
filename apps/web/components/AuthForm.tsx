@@ -31,7 +31,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         }
       }}
     >
-      <h1 className="font-display text-3xl font-bold">{mode === "login" ? "Welcome back" : "Join Glint"}</h1>
+      <h1 className="font-display text-3xl font-bold">{mode === "login" ? "Welcome back" : "Join Haven"}</h1>
       {mode === "register" && (
         <>
           <div className="grid grid-cols-2 gap-2">
@@ -39,7 +39,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               ["BUYER", "I want to shop"],
               ["SELLER", "I want to sell"],
             ].map(([v, l]) => (
-              <button type="button" key={v} onClick={() => setForm({ ...form, role: v! })} className={`btn-ghost py-3 ${form.role === v ? "border-glint bg-glint/10" : ""}`}>
+              <button type="button" key={v} onClick={() => setForm({ ...form, role: v! })} className={`btn-ghost py-3 ${form.role === v ? "border-brand bg-brand/10" : ""}`}>
                 {l}
               </button>
             ))}

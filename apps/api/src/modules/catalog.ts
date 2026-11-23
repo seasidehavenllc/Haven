@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { ProductInput, ProductQuery } from "@glint/shared";
+import { ProductInput, ProductQuery } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, notFound } from "../lib/errors";

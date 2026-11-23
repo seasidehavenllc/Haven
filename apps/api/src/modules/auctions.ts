@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { AuctionInput, BidInput, AddressInput, formatMoney } from "@glint/shared";
+import { AuctionInput, BidInput, AddressInput, formatMoney } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";

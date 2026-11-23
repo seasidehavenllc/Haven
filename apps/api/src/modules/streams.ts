@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { StreamInput, CohostModes, StreamModes } from "@glint/shared";
+import { StreamInput, CohostModes, StreamModes } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
@@ -134,7 +134,7 @@ export async function streamRoutes(app: FastifyInstance) {
         where: { id: s.id },
         data: {
           status: next,
-          ...(action === "start" ? { startedAt: new Date(), videoProvider: videoProvider.id, videoRoom: s.videoRoom ?? `glint-${s.id}` } : {}),
+          ...(action === "start" ? { startedAt: new Date(), videoProvider: videoProvider.id, videoRoom: s.videoRoom ?? `haven-${s.id}` } : {}),
           ...(action === "end" ? { endedAt: new Date() } : {}),
         },
       });

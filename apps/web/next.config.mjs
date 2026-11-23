@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
 export default {
-  transpilePackages: ["@glint/shared"],
+  transpilePackages: ["@haven/shared"],
   images: { unoptimized: true },
 };

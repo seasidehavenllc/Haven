@@ -73,7 +73,7 @@ export default function SellerAi() {
           {plans.data.plans.map((p: any) => {
             const current = sub?.plan.key === p.key;
             return (
-              <div key={p.id} className={`panel flex flex-col p-4 ${current ? "ring-2 ring-glint" : ""}`}>
+              <div key={p.id} className={`panel flex flex-col p-4 ${current ? "ring-2 ring-brand" : ""}`}>
                 <div className="font-display text-lg font-bold">{p.name}</div>
                 <div className="font-display text-3xl font-bold">
                   {p.monthlyPriceCents ? <Money cents={p.monthlyPriceCents} /> : "Free"}

@@ -9,7 +9,7 @@ export default function Root() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
         <Stack screenOptions={{ headerStyle: { backgroundColor: c.paper }, headerTintColor: c.ink, contentStyle: { backgroundColor: c.paper }, headerBackTitle: "Back" }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="p/[id]" options={{ title: "" }} />

@@ -6,7 +6,7 @@ import { useApi, useRealtime } from "@/lib/hooks";
 import { ErrorNote, Loading, Money, NotConfigured, minPrice, stock } from "@/components/ui";
 
 const MODE_BANNER: Record<string, { label: string; cls: string; sub: string }> = {
-  HUMAN: { label: "HUMAN HOST", cls: "bg-ink text-paper", sub: "AI is off for this show." },
+  HUMAN: { label: "HUMAN HOST", cls: "border border-line bg-card text-ink", sub: "AI is off for this show." },
   HUMAN_AI_COHOST: { label: "HUMAN + AI CO-HOST", cls: "bg-ai text-white", sub: "You're in control. The AI helps privately unless you let it speak." },
   AI_HOST: { label: "AI HOST", cls: "bg-ai text-white", sub: "An AI salesperson is presenting. Viewers see an AI label." },
 };
@@ -88,13 +88,13 @@ export default function Studio({ params }: { params: Promise<{ id: string }> }) 
           <div className="text-xs opacity-80">{banner.sub}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="chip bg-paper/20">{s.status.toLowerCase()}</span>
-          <span className="chip bg-paper/20">{s.viewers} watching</span>
+          <span className="chip bg-white/15">{s.status.toLowerCase()}</span>
+          <span className="chip bg-white/15">{s.viewers} watching</span>
           {s.status === "SCHEDULED" && <button className="btn bg-live text-white" onClick={() => act("/start")}>Go live</button>}
-          {s.status === "LIVE" && <button className="btn bg-paper/20" onClick={() => act("/pause")}>Pause</button>}
-          {s.status === "PAUSED" && <button className="btn bg-paper/20" onClick={() => act("/resume")}>Resume</button>}
-          {s.status !== "ENDED" && <button className="btn bg-paper/20" onClick={() => confirm("End this show?") && act("/end")}>End</button>}
-          <Link href={`/live/${id}`} className="btn bg-paper/20" target="_blank">Viewer page</Link>
+          {s.status === "LIVE" && <button className="btn bg-white/15" onClick={() => act("/pause")}>Pause</button>}
+          {s.status === "PAUSED" && <button className="btn bg-white/15" onClick={() => act("/resume")}>Resume</button>}
+          {s.status !== "ENDED" && <button className="btn bg-white/15" onClick={() => confirm("End this show?") && act("/end")}>End</button>}
+          <Link href={`/live/${id}`} className="btn bg-white/15" target="_blank">Viewer page</Link>
         </div>
       </div>
       {!s.video.configured && <NotConfigured what="Live video" env={["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]} />}

@@ -1,4 +1,4 @@
-import { ProductConditions } from "@glint/shared";
+import { ProductConditions } from "@haven/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Switch, View } from "react-native";
@@ -120,7 +120,7 @@ export default function ReviewScan() {
             <T size={13}>to</T>
             <Money cents={r.price.highCents} size={13} />
             <Pressable onPress={() => set("price")((r.price.suggestedCents / 100).toFixed(2))}>
-              <T size={13} color={c.glint} weight="600">
+              <T size={13} color={c.brand} weight="600">
                 {"  "}use {(r.price.suggestedCents / 100).toFixed(2)}
               </T>
             </Pressable>

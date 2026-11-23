@@ -1,4 +1,4 @@
-// Glint data model. Money = integer cents. Ledgers are append-only.
+// Haven data model. Money = integer cents. Ledgers are append-only.
 generator client {
   provider = "prisma-client-js"
 }

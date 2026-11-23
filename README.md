@@ -2,7 +2,7 @@
 
 AI-first social commerce: live shopping (human host, human + AI co-host, or AI host), AI photo-to-listing, auctions, a marketplace, and an AI shopping assistant. It runs on the web, iOS and Android from one shared backend.
 
-The code name inside the repo is **Glint** (package names such as `@glint/api`). A rename is mechanical and can happen any time.
+Packages are named `@haven/api`, `@haven/web`, `@haven/mobile` and `@haven/shared`.
 
 | Folder | What it is |
 | --- | --- |
@@ -24,7 +24,7 @@ createdb commerce            # or use any Postgres URL
 cp apps/api/.env.example apps/api/.env
 #   set DATABASE_URL and JWT_SECRET (openssl rand -base64 48)
 #   for local testing without Stripe, set ALLOW_TEST_PAYMENTS=true
-pnpm --filter @glint/api exec prisma migrate deploy
+pnpm --filter @haven/api exec prisma migrate deploy
 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-password' pnpm db:seed
 
 # API on :4000, web on :3000

@@ -40,7 +40,7 @@ export default function Streams() {
         <h2 className="font-display text-lg font-semibold">New show</h2>
         <div className="grid gap-2 md:grid-cols-3">
           {MODES.map(([v, l, d]) => (
-            <button type="button" key={v} onClick={() => setF({ ...f, mode: v })} className={`rounded-2xl border p-3 text-left ${f.mode === v ? "border-glint bg-glint/10" : "border-line"}`}>
+            <button type="button" key={v} onClick={() => setF({ ...f, mode: v })} className={`rounded-2xl border p-3 text-left ${f.mode === v ? "border-brand bg-brand/10" : "border-line"}`}>
               <div className="font-semibold">{l}</div>
               <div className="text-xs text-muted">{d}</div>
             </button>

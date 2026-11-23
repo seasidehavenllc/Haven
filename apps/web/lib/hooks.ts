@@ -48,8 +48,8 @@ export function useMe() {
   useEffect(() => {
     load();
     const h = () => load();
-    window.addEventListener("glint-auth", h);
-    return () => window.removeEventListener("glint-auth", h);
+    window.addEventListener("haven-auth", h);
+    return () => window.removeEventListener("haven-auth", h);
   }, [load]);
   return { me, ready, reload: load };
 }

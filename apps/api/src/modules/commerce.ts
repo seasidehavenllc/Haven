@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { CartItemInput, CheckoutInput } from "@glint/shared";
+import { CartItemInput, CheckoutInput } from "@haven/shared";
 import { prisma, type Tx } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, conflict, notFound, HttpError } from "../lib/errors";

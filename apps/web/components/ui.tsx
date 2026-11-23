@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { formatMoney } from "@glint/shared";
+import { formatMoney } from "@haven/shared";
 import type { ReactNode } from "react";
 
 export const Money = ({ cents }: { cents: number }) => <>{formatMoney(cents)}</>;
@@ -19,7 +19,7 @@ export function ProductCard({ p }: { p: any }) {
     <Link href={`/p/${p.id}`} className="group block">
       <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-line">
         {img ? <img src={img} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.03]" /> : <div className="grid h-full place-items-center text-xs text-muted">No photo</div>}
-        {qty === 0 && <span className="chip absolute left-2 top-2 bg-ink text-paper">Sold out</span>}
+        {qty === 0 && <span className="chip absolute left-2 top-2 bg-black/70 text-white">Sold out</span>}
         {qty > 0 && qty <= 3 && <span className="chip absolute left-2 top-2 bg-warn text-white">Only {qty} left</span>}
       </div>
       <div className="mt-2 line-clamp-1 text-sm font-medium">{p.title}</div>
@@ -59,7 +59,7 @@ export function ErrorNote({ error }: { error: any }) {
 }
 
 export function Spinner() {
-  return <div className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-glint" aria-label="Loading" />;
+  return <div className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-brand" aria-label="Loading" />;
 }
 
 export function Loading() {

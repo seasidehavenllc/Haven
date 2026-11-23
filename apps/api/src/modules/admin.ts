@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { AiCapabilities, AiFeatures } from "@glint/shared";
+import { AiCapabilities, AiFeatures } from "@haven/shared";
 import { prisma } from "../db";
 import { requireAdmin } from "../lib/auth";
 import { badRequest, notFound } from "../lib/errors";

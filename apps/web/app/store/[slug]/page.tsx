@@ -16,7 +16,7 @@ export default function StorePage({ params }: { params: Promise<{ slug: string }
   return (
     <div className="space-y-8">
       <div className="overflow-hidden rounded-3xl border border-line">
-        <div className="h-40 bg-gradient-to-r from-glint/80 to-ai/70">{sf.bannerUrl && <img src={sf.bannerUrl} alt="" className="h-full w-full object-cover" />}</div>
+        <div className="h-40 bg-gradient-to-r from-brand/80 to-ai/70">{sf.bannerUrl && <img src={sf.bannerUrl} alt="" className="h-full w-full object-cover" />}</div>
         <div className="flex flex-wrap items-end gap-4 bg-card p-5">
           <div className="-mt-14 grid h-20 w-20 place-items-center overflow-hidden rounded-2xl border-4 border-card bg-line font-display text-2xl font-bold">{sf.logoUrl ? <img src={sf.logoUrl} alt="" /> : sf.name[0]}</div>
           <div className="flex-1">

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { LoginInput, RegisterInput } from "@glint/shared";
+import { LoginInput, RegisterInput } from "@haven/shared";
 import { prisma } from "../db";
 import { hashPassword, issueSession, requireUser, sha256, verifyPassword, signAccessToken } from "../lib/auth";
 import { conflict, unauthorized } from "../lib/errors";
