@@ -36,27 +36,27 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  sessions      Session[]
-  oauthAccounts OAuthAccount[]
-  seller        SellerAccount?
-  staffOf       SellerStaff[]
-  addresses     Address[]
-  cart          Cart?
-  orders        Order[]
-  reviews       Review[]
-  bids          AuctionBid[]
-  chatMessages  StreamChatMessage[]
-  following     Follow[]            @relation("follower")
-  followers     Follow[]            @relation("followee")
-  wishlist      WishlistItem[]
-  notifications Notification[]
-  pushDevices   PushDevice[]
+  sessions               Session[]
+  oauthAccounts          OAuthAccount[]
+  seller                 SellerAccount?
+  staffOf                SellerStaff[]
+  addresses              Address[]
+  cart                   Cart?
+  orders                 Order[]
+  reviews                Review[]
+  bids                   AuctionBid[]
+  chatMessages           StreamChatMessage[]
+  following              Follow[]                @relation("follower")
+  followers              Follow[]                @relation("followee")
+  wishlist               WishlistItem[]
+  notifications          Notification[]
+  pushDevices            PushDevice[]
   notificationPreference NotificationPreference?
-  affiliate     Affiliate?
-  reportsFiled  Report[]            @relation("reporter")
-  auditLogs     AuditLog[]
-  sentMessages  DirectMessage[]     @relation("sender")
-  recvMessages  DirectMessage[]     @relation("recipient")
+  affiliate              Affiliate?
+  reportsFiled           Report[]                @relation("reporter")
+  auditLogs              AuditLog[]
+  sentMessages           DirectMessage[]         @relation("sender")
+  recvMessages           DirectMessage[]         @relation("recipient")
 }
 
 model Session {
@@ -116,6 +116,8 @@ model SellerAccount {
   campaigns        AffiliateCampaign[]
   payouts          Payout[]
   aiBillingCharges AiBillingCharge[]
+  shippingProfile  SellerShippingProfile?
+  ledger           SellerLedgerEntry[]
 }
 
 model SellerStaff {
@@ -440,16 +442,103 @@ model Payout {
 }
 
 model Shipment {
-  id             String   @id @default(cuid())
+  id             String          @id @default(cuid())
   orderId        String
-  order          Order    @relation(fields: [orderId], references: [id])
+  order          Order           @relation(fields: [orderId], references: [id])
   carrier        String?
+  service        String?
   trackingNumber String?
+  trackingUrl    String?
   labelUrl       String?
   provider       String? // shippo | easypost | manual
-  status         String   @default("PENDING")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  /// The provider's id for the label (Shippo transaction / EasyPost shipment).
+  providerRef    String?
+  /// What the label cost the platform, charged back to the seller in SellerLedgerEntry.
+  labelCostCents Int?
+  /// LABEL_CREATED | IN_TRANSIT | OUT_FOR_DELIVERY | DELIVERED | RETURNED | FAILURE | UNKNOWN
+  status         String          @default("PENDING")
+  estDeliveryAt  DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  events         ShipmentEvent[]
+
+  @@index([trackingNumber])
+  @@index([orderId])
+}
+
+/// Tracking history as reported by the carrier, via provider webhooks. Append-only.
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status      String
+  description String?
+  location    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([shipmentId, status, occurredAt])
+}
+
+/// Rates a seller fetched for an order. Buying a label must use a rate from a quote for that order.
+model ShippingQuote {
+  id          String    @id @default(cuid())
+  orderId     String
+  provider    String
+  /// Provider shipment id the rates belong to.
+  shipmentRef String
+  rates       Json
+  parcel      Json
+  /// Set when a label is bought from this quote, so a quote can only be used once.
+  purchasedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+/// How a seller charges buyers for shipping, and where they ship from.
+model SellerShippingProfile {
+  sellerId               String        @id
+  seller                 SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  /// Charged once per order.
+  flatRateCents          Int           @default(0)
+  /// Added for each item after the first.
+  perAdditionalItemCents Int           @default(0)
+  /// Orders whose subtotal reaches this ship free. Null means never free.
+  freeOverCents          Int?
+  handlingDays           Int           @default(2)
+  fromName               String?
+  fromCompany            String?
+  fromLine1              String?
+  fromLine2              String?
+  fromCity               String?
+  fromRegion             String?
+  fromPostalCode         String?
+  fromCountry            String?       @default("US")
+  fromPhone              String?
+  /// Default box when a seller doesn't enter one, in inches.
+  parcelLengthIn         Float         @default(10)
+  parcelWidthIn          Float         @default(8)
+  parcelHeightIn         Float         @default(4)
+  updatedAt              DateTime      @updatedAt
+}
+
+/// Append-only money ledger between the platform and a seller, outside of order proceeds
+/// (shipping labels the platform bought for the seller, adjustments). Netted against payouts.
+model SellerLedgerEntry {
+  id             String        @id @default(cuid())
+  sellerId       String
+  seller         SellerAccount @relation(fields: [sellerId], references: [id])
+  /// Negative: the seller owes the platform. Positive: the platform owes the seller.
+  amountCents    Int
+  kind           String // LABEL_PURCHASE | LABEL_REFUND | ADJUSTMENT
+  refId          String?
+  memo           String?
+  idempotencyKey String        @unique
+  createdAt      DateTime      @default(now())
+
+  @@index([sellerId, createdAt])
 }
 
 // ───────────────────────── Livestreams ─────────────────────────
@@ -855,7 +944,9 @@ model Notification {
   @@index([userId, createdAt])
 }
 
-/** A phone registered for push notifications (Expo push token). */
+/**
+ * A phone registered for push notifications (Expo push token).
+ */
 model PushDevice {
   id         String   @id @default(cuid())
   userId     String
