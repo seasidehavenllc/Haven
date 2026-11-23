@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Haven",
+    "slug": "haven",
+    "scheme": "haven",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.seasidehaven.haven",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of items to create listings.",
+        "NSPhotoLibraryUsageDescription": "Choose photos of items to create listings."
+      }
+    },
+    "android": {
+      "package": "com.seasidehaven.haven",
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-image-picker", { "cameraPermission": "Take photos of items to create listings.", "photosPermission": "Choose photos of items to create listings." }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

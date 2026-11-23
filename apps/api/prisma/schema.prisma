@@ -1,0 +1,911 @@
+// Glint data model. Money = integer cents. Ledgers are append-only.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Accounts ─────────────────────────
+
+enum Role {
+  BUYER
+  SELLER
+  CREATOR
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String?
+  handle       String        @unique
+  displayName  String
+  avatarUrl    String?
+  bio          String?
+  roles        Role[]        @default([BUYER])
+  status       AccountStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  sessions      Session[]
+  oauthAccounts OAuthAccount[]
+  seller        SellerAccount?
+  staffOf       SellerStaff[]
+  addresses     Address[]
+  cart          Cart?
+  orders        Order[]
+  reviews       Review[]
+  bids          AuctionBid[]
+  chatMessages  StreamChatMessage[]
+  following     Follow[]            @relation("follower")
+  followers     Follow[]            @relation("followee")
+  wishlist      WishlistItem[]
+  notifications Notification[]
+  affiliate     Affiliate?
+  reportsFiled  Report[]            @relation("reporter")
+  auditLogs     AuditLog[]
+  sentMessages  DirectMessage[]     @relation("sender")
+  recvMessages  DirectMessage[]     @relation("recipient")
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ip               String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model OAuthAccount {
+  id         String @id @default(cuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String // apple | google
+  providerId String
+
+  @@unique([provider, providerId])
+}
+
+enum SellerStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model SellerAccount {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName    String
+  status          SellerStatus @default(APPROVED)
+  stripeAccountId String?      @unique
+  payoutsEnabled  Boolean      @default(false)
+  aiDisabled      Boolean      @default(false) // merchant-level AI kill switch
+  createdAt       DateTime     @default(now())
+
+  storefront       Storefront?
+  products         Product[]
+  staff            SellerStaff[]
+  streams          Livestream[]
+  aiAgents         AiAgent[]
+  scans            ProductScan[]
+  subscription     SellerSubscription?
+  creditTxns       AiCreditTransaction[]
+  usageRecords     AiUsageRecord[]
+  spendingLimit    AiSpendingLimit?
+  orders           Order[]
+  auctions         Auction[]
+  campaigns        AffiliateCampaign[]
+  payouts          Payout[]
+  aiBillingCharges AiBillingCharge[]
+}
+
+model SellerStaff {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions String[] // products:write, streams:host, orders:fulfill ...
+
+  @@unique([sellerId, userId])
+}
+
+model Storefront {
+  id             String        @id @default(cuid())
+  sellerId       String        @unique
+  seller         SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  slug           String        @unique
+  name           String
+  description    String?
+  logoUrl        String?
+  bannerUrl      String?
+  shippingPolicy String?
+  returnPolicy   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  line1      String
+  line2      String?
+  city       String
+  region     String
+  postalCode String
+  country    String
+  isDefault  Boolean @default(false)
+}
+
+// ───────────────────────── Catalog ─────────────────────────
+
+model Category {
+  id       String     @id @default(cuid())
+  slug     String     @unique
+  name     String
+  parentId String?
+  parent   Category?  @relation("tree", fields: [parentId], references: [id])
+  children Category[] @relation("tree")
+  products Product[]
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  REMOVED // by moderation
+}
+
+enum ProductCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+  POOR
+  REFURBISHED
+}
+
+model Product {
+  id                  String           @id @default(cuid())
+  sellerId            String
+  seller              SellerAccount    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  categoryId          String?
+  category            Category?        @relation(fields: [categoryId], references: [id])
+  title               String
+  description         String           @default("")
+  brand               String?
+  model               String?
+  condition           ProductCondition @default(NEW)
+  tags                String[]
+  status              ProductStatus    @default(ACTIVE)
+  shippingWeightGrams Int?
+  /// When true the product is offered in the seller's live product menu automatically.
+  liveMenuEnabled     Boolean          @default(true)
+  sourceScanId        String?          @unique
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  variants       ProductVariant[]
+  media          ProductMedia[]
+  reviews        Review[]
+  streamProducts StreamProduct[]
+  auctions       Auction[]
+  wishlistedBy   WishlistItem[]
+  sourceScan     ProductScan?     @relation(fields: [sourceScanId], references: [id])
+
+  @@index([sellerId, status])
+  @@index([categoryId, status])
+  @@index([createdAt])
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        String?
+  name       String
+  options    Json     @default("{}")
+  priceCents Int
+  /// On-hand stock. Only changed inside transactions with a guarded UPDATE (quantity >= n).
+  quantity   Int      @default(0)
+  version    Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  inventoryEvents InventoryEvent[]
+
+  @@index([productId])
+}
+
+model InventoryEvent {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  delta     Int
+  reason    String // SALE | RESTOCK | ADJUST | CANCEL_RESTORE | AUCTION_WIN
+  refId     String?
+  createdAt DateTime       @default(now())
+
+  @@index([variantId, createdAt])
+}
+
+model ProductMedia {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  kind      String  @default("image") // image | video
+  position  Int     @default(0)
+}
+
+model Review {
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItemId String    @unique // verified-purchase only
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  rating      Int
+  body        String
+  createdAt   DateTime  @default(now())
+
+  @@index([productId])
+}
+
+model WishlistItem {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+// ───────────────────────── AI product scanner ─────────────────────────
+
+enum ScanStatus {
+  UPLOADED
+  ANALYZING
+  READY // draft available for seller review
+  FAILED
+  PUBLISHED
+  DISCARDED
+}
+
+model ProductScan {
+  id        String        @id @default(cuid())
+  sellerId  String
+  seller    SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  batchId   String?
+  imageUrls String[]
+  barcode   String?
+  status    ScanStatus    @default(UPLOADED)
+  error     String?
+  /// Raw structured AI output (identification + confidence per field).
+  result    Json?
+  /// Editable listing draft derived from result; seller edits this.
+  draft     Json?
+  imageHash String? // for duplicate detection within a seller
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  product   Product?
+
+  @@index([sellerId, status])
+  @@index([sellerId, imageHash])
+  @@index([batchId])
+}
+
+// ───────────────────────── Cart & orders ─────────────────────────
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+
+  @@unique([cartId, variantId])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  FULFILLING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+/// One order per seller per checkout ("checkout group" ties them together).
+model Order {
+  id               String        @id @default(cuid())
+  checkoutGroupId  String
+  buyerId          String
+  buyer            User          @relation(fields: [buyerId], references: [id])
+  sellerId         String
+  seller           SellerAccount @relation(fields: [sellerId], references: [id])
+  status           OrderStatus   @default(PENDING_PAYMENT)
+  subtotalCents    Int
+  shippingCents    Int           @default(0)
+  platformFeeCents Int
+  totalCents       Int
+  currency         String        @default("USD")
+  shippingAddress  Json
+  streamId         String?
+  affiliateCode    String?
+  isTest           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  items      OrderItem[]
+  shipments  Shipment[]
+  refunds    Refund[]
+  commission Commission[]
+
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([checkoutGroupId])
+}
+
+model OrderItem {
+  id             String         @id @default(cuid())
+  orderId        String
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId      String
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  titleSnapshot  String
+  unitPriceCents Int
+  quantity       Int
+  review         Review?
+}
+
+model CheckoutSession {
+  id             String   @id @default(cuid())
+  buyerId        String
+  idempotencyKey String
+  provider       String // stripe | test
+  providerRef    String?
+  amountCents    Int
+  status         String   @default("PENDING") // PENDING | SUCCEEDED | FAILED | EXPIRED
+  isTest         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([buyerId, idempotencyKey])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  checkoutId  String   @unique
+  provider    String
+  providerRef String   @unique
+  amountCents Int
+  status      String
+  isTest      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Refund {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  amountCents Int
+  reason      String?
+  status      String   @default("REQUESTED")
+  providerRef String?
+  createdAt   DateTime @default(now())
+}
+
+model Payout {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerAccount @relation(fields: [sellerId], references: [id])
+  amountCents Int
+  status      String
+  providerRef String?
+  createdAt   DateTime      @default(now())
+}
+
+model Shipment {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id])
+  carrier        String?
+  trackingNumber String?
+  labelUrl       String?
+  provider       String? // shippo | easypost | manual
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ───────────────────────── Livestreams ─────────────────────────
+
+enum StreamMode {
+  HUMAN
+  AI_HOST
+  HUMAN_AI_COHOST
+}
+
+enum CohostMode {
+  SILENT
+  INVITED
+  AUTO_ASSIST
+  TAKEOVER
+}
+
+enum StreamStatus {
+  SCHEDULED
+  LIVE
+  PAUSED
+  ENDED
+}
+
+model Livestream {
+  id              String        @id @default(cuid())
+  sellerId        String
+  seller          SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  mode            StreamMode
+  cohostMode      CohostMode    @default(SILENT)
+  aiPublicSpeech  Boolean       @default(false) // AI may speak/post publicly
+  aiPaused        Boolean       @default(false)
+  status          StreamStatus  @default(SCHEDULED)
+  scheduledFor    DateTime?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  videoProvider   String?
+  videoRoom       String?       @unique
+  aiAgentId       String?
+  aiAgent         AiAgent?      @relation(fields: [aiAgentId], references: [id])
+  pinnedProductId String?
+  createdAt       DateTime      @default(now())
+
+  products StreamProduct[]
+  chat     StreamChatMessage[]
+  auctions Auction[]
+  aiEvents AiTranscriptEntry[]
+
+  @@index([status, scheduledFor])
+  @@index([sellerId])
+}
+
+model StreamProduct {
+  id        String     @id @default(cuid())
+  streamId  String
+  stream    Livestream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  position  Int        @default(0)
+  hidden    Boolean    @default(false)
+
+  @@unique([streamId, productId])
+}
+
+model StreamChatMessage {
+  id        String     @id @default(cuid())
+  streamId  String
+  stream    Livestream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id])
+  body      String
+  isAi      Boolean    @default(false) // always disclosed in UI
+  hidden    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([streamId, createdAt])
+}
+
+// ───────────────────────── AI agents ─────────────────────────
+
+model AiAgent {
+  id             String        @id @default(cuid())
+  sellerId       String
+  seller         SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name           String
+  personality    String        @default("friendly")
+  salesStyle     String        @default("consultative")
+  language       String        @default("en")
+  voiceProvider  String?
+  voiceId        String?
+  avatarProvider String?
+  avatarId       String?
+  talkingPoints  String[]
+  faqs           Json          @default("[]")
+  /// Explicit allow-list of actions. Price/refund/discount changes are never permitted.
+  permissions    String[]      @default(["answer_questions", "present_products"])
+  createdAt      DateTime      @default(now())
+
+  streams Livestream[]
+}
+
+model AiTranscriptEntry {
+  id        String     @id @default(cuid())
+  streamId  String
+  stream    Livestream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  speaker   String // host | ai | viewer
+  kind      String // transcript | suggestion | public_response | action
+  body      String
+  meta      Json?
+  createdAt DateTime   @default(now())
+
+  @@index([streamId, createdAt])
+}
+
+// ───────────────────────── Auctions ─────────────────────────
+
+enum AuctionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model Auction {
+  id                 String        @id @default(cuid())
+  sellerId           String
+  seller             SellerAccount @relation(fields: [sellerId], references: [id])
+  productId          String
+  product            Product       @relation(fields: [productId], references: [id])
+  streamId           String?
+  stream             Livestream?   @relation(fields: [streamId], references: [id])
+  startingPriceCents Int
+  minIncrementCents  Int
+  reservePriceCents  Int?
+  currentPriceCents  Int?
+  leadingBidId       String?       @unique
+  leadingBid         AuctionBid?   @relation("leading", fields: [leadingBidId], references: [id])
+  startsAt           DateTime
+  endsAt             DateTime
+  status             AuctionStatus @default(SCHEDULED)
+  winnerId           String?
+  reserveMet         Boolean?
+  version            Int           @default(0)
+  createdAt          DateTime      @default(now())
+
+  bids AuctionBid[] @relation("bids")
+
+  @@index([status, endsAt])
+}
+
+model AuctionBid {
+  id             String   @id @default(cuid())
+  auctionId      String
+  auction        Auction  @relation("bids", fields: [auctionId], references: [id], onDelete: Cascade)
+  bidderId       String
+  bidder         User     @relation(fields: [bidderId], references: [id])
+  amountCents    Int
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+  leadingFor     Auction? @relation("leading")
+
+  @@unique([bidderId, idempotencyKey])
+  @@index([auctionId, amountCents])
+}
+
+// ───────────────────────── AI platform: providers, routing, billing ─────────────────────────
+
+model AiProvider {
+  id                      String   @id @default(cuid())
+  key                     String   @unique // openai | anthropic | google | deepgram | elevenlabs | heygen ...
+  name                    String
+  adapter                 String // adapter implementation id in code
+  enabled                 Boolean  @default(false)
+  /// Name of the environment variable holding the secret. The secret itself is never stored in the DB.
+  credentialEnvVar        String
+  monthlySpendLimitMicros BigInt?
+  createdAt               DateTime @default(now())
+
+  models AiProviderModel[]
+}
+
+model AiProviderModel {
+  id                      String     @id @default(cuid())
+  providerId              String
+  provider                AiProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modelId                 String
+  capability              String // AiCapability
+  tier                    String     @default("standard") // economy | standard | premium
+  enabled                 Boolean    @default(true)
+  /// Provider list price in micro-dollars per unit. Units depend on capability.
+  inputCostMicrosPerMTok  Int        @default(0)
+  outputCostMicrosPerMTok Int        @default(0)
+  unitCostMicros          Int        @default(0) // per image / per audio minute / per 1k chars / per video minute
+  unitName                String?
+
+  @@unique([providerId, modelId, capability])
+}
+
+/// Routing: for a feature, try candidates in priority order (lower first), filtered by plan tier.
+model AiRoutingRule {
+  id          String  @id @default(cuid())
+  feature     String // AiFeature
+  modelRefId  String // AiProviderModel.id
+  priority    Int     @default(100)
+  minPlanTier Int     @default(0)
+  enabled     Boolean @default(true)
+
+  @@index([feature, priority])
+}
+
+/// Platform-wide controls (single row id = "global").
+model PlatformSettings {
+  id                    String   @id
+  aiEmergencyDisabled   Boolean  @default(false)
+  aiDailyBudgetMicros   BigInt?
+  aiMonthlyBudgetMicros BigInt?
+  marketplaceFeeBps     Int      @default(800) // 8.00%
+  allowTestPayments     Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
+}
+
+model AiPlan {
+  id                 String   @id @default(cuid())
+  key                String   @unique // starter | pro | business | enterprise
+  name               String
+  tier               Int // 0..3, used by routing + feature gates
+  monthlyPriceCents  Int
+  annualPriceCents   Int?
+  monthlyCredits     Int // credits granted each period
+  rolloverPercent    Int      @default(0) // 0..100 of unused allowance carried over
+  features           String[] // AiFeature allowed
+  limits             Json     @default("{}") // e.g. {"AI_HOST_MINUTE": {"perStreamMax": 60}}
+  active             Boolean  @default(true)
+  stripePriceMonthly String?
+  stripePriceAnnual  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  subscriptions SellerSubscription[]
+}
+
+/// What each feature costs in credits. Admin-configurable.
+model AiFeaturePrice {
+  feature        String @id
+  creditsPerUnit Int
+  unitName       String
+}
+
+model SellerSubscription {
+  id                   String        @id @default(cuid())
+  sellerId             String        @unique
+  seller               SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  planId               String
+  plan                 AiPlan        @relation(fields: [planId], references: [id])
+  interval             String        @default("month")
+  status               String        @default("ACTIVE") // ACTIVE | PAST_DUE | CANCELLED
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean       @default(false)
+  stripeSubscriptionId String?       @unique
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+}
+
+enum CreditTxnKind {
+  ALLOWANCE_GRANT
+  ALLOWANCE_EXPIRE
+  PURCHASE
+  USAGE
+  REFUND
+  ADJUSTMENT
+}
+
+/// Append-only credit ledger. Balance = SUM(amount). Never UPDATE rows.
+model AiCreditTransaction {
+  id             String         @id @default(cuid())
+  sellerId       String
+  seller         SellerAccount  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  kind           CreditTxnKind
+  /// Positive = credit added, negative = consumed.
+  amount         Int
+  /// allowance credits expire at period end; purchased credits do not
+  bucket         String         @default("purchased") // allowance | purchased
+  idempotencyKey String         @unique
+  usageRecordId  String?
+  usageRecord    AiUsageRecord? @relation(fields: [usageRecordId], references: [id])
+  revenueCents   Int            @default(0) // money actually received (purchases)
+  note           String?
+  createdAt      DateTime       @default(now())
+
+  @@index([sellerId, createdAt])
+  @@index([usageRecordId])
+}
+
+/// Money actually collected for AI (subscriptions + credit packs). Separate from marketplace payments.
+model AiBillingCharge {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  kind        String // SUBSCRIPTION | CREDIT_PACK
+  planKey     String?
+  packKey     String?
+  amountCents Int
+  provider    String // stripe | test
+  providerRef String        @unique
+  isTest      Boolean       @default(false)
+  status      String        @default("SUCCEEDED") // SUCCEEDED | FAILED | REFUNDED
+  createdAt   DateTime      @default(now())
+
+  @@index([createdAt])
+  @@index([sellerId, createdAt])
+}
+
+model AiCreditPack {
+  key        String  @id
+  name       String
+  credits    Int
+  priceCents Int
+  active     Boolean @default(true)
+}
+
+model AiSpendingLimit {
+  sellerId         String        @id
+  seller           SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  dailyCreditCap   Int?
+  monthlyCreditCap Int?
+  warnAtCredits    Int?
+}
+
+/// One row per AI operation, including failed and denied ones.
+model AiUsageRecord {
+  id                 String         @id @default(cuid())
+  sellerId           String?
+  seller             SellerAccount? @relation(fields: [sellerId], references: [id])
+  userId             String?
+  planKey            String?
+  feature            String
+  capability         String
+  providerKey        String?
+  modelId            String?
+  inputTokens        Int?
+  outputTokens       Int?
+  units              Float? // images, minutes, characters
+  unitName           String?
+  providerCostMicros BigInt         @default(0)
+  creditsCharged     Int            @default(0)
+  status             String // SUCCEEDED | FAILED | DENIED
+  denyReason         String?
+  latencyMs          Int?
+  streamId           String?
+  productId          String?
+  scanId             String?
+  isTest             Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+
+  creditTxns AiCreditTransaction[]
+
+  @@index([createdAt])
+  @@index([sellerId, createdAt])
+  @@index([providerKey, createdAt])
+  @@index([feature, createdAt])
+}
+
+// ───────────────────────── Social, affiliates, ops ─────────────────────────
+
+model Follow {
+  followerId String
+  follower   User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followeeId String
+  followee   User     @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([followerId, followeeId])
+}
+
+model DirectMessage {
+  id          String    @id @default(cuid())
+  senderId    String
+  sender      User      @relation("sender", fields: [senderId], references: [id])
+  recipientId String
+  recipient   User      @relation("recipient", fields: [recipientId], references: [id])
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([recipientId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Affiliate {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  commissions Commission[]
+}
+
+model AffiliateCampaign {
+  id            String        @id @default(cuid())
+  sellerId      String
+  seller        SellerAccount @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name          String
+  commissionBps Int
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+}
+
+model Commission {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id])
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id])
+  amountCents Int
+  status      String    @default("PENDING") // PENDING until order delivered + return window
+  createdAt   DateTime  @default(now())
+
+  @@unique([affiliateId, orderId])
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  reporter   User     @relation("reporter", fields: [reporterId], references: [id])
+  targetType String // product | stream | user | message
+  targetId   String
+  reason     String
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String?
+  targetId   String?
+  data       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+}
