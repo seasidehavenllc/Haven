@@ -15,6 +15,7 @@ Each pull request builds on the one before it, so merge them oldest first.
 4. **#5** Sign in with Apple and Google.
 5. **#6** Short-form shoppable video feed.
 6. **#7** AI host voice, mic transcription and avatar sessions, plus the AI salespeople page.
+7. **#8** Phone app: auctions (browse, bid, winner checkout) and profiles with follow; profiles on the web too.
 
 ## Decisions
 

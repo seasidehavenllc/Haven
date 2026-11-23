@@ -62,6 +62,10 @@ export function mobileRoute(link: string) {
   if (m?.[1] === "live") return `/live/${m[2]}`;
   if (m?.[1] === "videos") return `/video/${m[2]}`;
   if (m?.[1] === "p") return `/p/${m[2]}`;
+  if (m?.[1] === "auctions") return `/auctions/${m[2]}`;
+  if (link === "/auctions") return "/auctions";
+  const u = link.match(/^\/u\/([^/?#]+)/);
+  if (u) return `/u/${u[1]}`;
   if (link.startsWith("/orders")) return "/account";
   if (link.startsWith("/seller")) return "/sell";
   return "/notifications";

@@ -81,6 +81,30 @@ export async function sellerRoutes(app: FastifyInstance) {
     };
   });
 
+  /** Public profile: only public fields and real counts. */
+  app.get("/users/:handle", async (req) => {
+    const u = await prisma.user.findUnique({
+      where: { handle: (req.params as { handle: string }).handle },
+      select: {
+        id: true,
+        handle: true,
+        displayName: true,
+        avatarUrl: true,
+        bio: true,
+        createdAt: true,
+        seller: { select: { storefront: { select: { slug: true, name: true, logoUrl: true } } } },
+        _count: { select: { followers: true, following: true } },
+      },
+    });
+    if (!u) throw notFound("User");
+    const [videoCount, mine] = await Promise.all([
+      prisma.video.count({ where: { creatorId: u.id, status: "READY" } }),
+      req.user ? prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: req.user.id, followeeId: u.id } } }) : null,
+    ]);
+    const { _count, ...rest } = u;
+    return { ...rest, followerCount: _count.followers, followingCount: _count.following, videoCount, followedByMe: !!mine, isMe: req.user?.id === u.id };
+  });
+
   app.post("/users/:id/follow", async (req) => {
     const u = requireUser(req);
     const { id } = req.params as { id: string };

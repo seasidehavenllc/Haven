@@ -88,7 +88,9 @@ export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }
 
       <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 14, paddingRight: 70, gap: 6, backgroundColor: "rgba(0,0,0,0.45)" }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ ...W, fontWeight: "700" }}>@{v.creator.handle}</Text>
+          <Pressable onPress={() => router.push(`/u/${v.creator.handle}`)} hitSlop={8} accessibilityLabel={`Open @${v.creator.handle}'s profile`}>
+            <Text style={{ ...W, fontWeight: "700" }}>@{v.creator.handle}</Text>
+          </Pressable>
           {me && me.user.id !== v.creatorId && (
             <Pressable
               onPress={async () => {
