@@ -12,6 +12,7 @@ Each pull request builds on the one before it, so merge them oldest first.
 1. **#2** Rebrand to Haven, plus preview fixes.
 2. **#3** Notifications (inbox, push, email, settings).
 3. **#4** Shipping (seller rates, labels, tracking).
+4. **#5** Sign in with Apple and Google.
 
 ## Decisions
 
@@ -35,8 +36,8 @@ Each pull request builds on the one before it, so merge them oldest first.
 | Emails (orders, shipping, auction wins) | Resend account, with seasidehavenllc.com (or a subdomain) verified | `RESEND_API_KEY`, `EMAIL_FROM` |
 | Phone push notifications | An Expo account, then run `eas init` in `apps/mobile` (adds the project id to `app.json`) | none on the server unless you turn on Expo's enhanced push security (`EXPO_ACCESS_TOKEN`) |
 | Shipping labels and live rates | Shippo or EasyPost account. Then point its tracking webhook at `https://<api>/webhooks/shipping/shippo?token=...` (or `/easypost`) | `SHIPPO_API_KEY` or `EASYPOST_API_KEY`, `SHIPPING_WEBHOOK_TOKEN` |
-| Sign in with Apple | Apple Developer account ($99/yr), a Services ID | `APPLE_CLIENT_ID` |
-| Sign in with Google | Google Cloud OAuth client | `GOOGLE_OAUTH_CLIENT_ID` |
+| Sign in with Apple | Apple Developer account ($99/yr). Turn on Sign in with Apple for the app id `com.seasidehaven.haven`, and create a Services ID for the website with its return URL | API: `APPLE_CLIENT_ID` (bundle id and Services ID, comma-separated). Web: `NEXT_PUBLIC_APPLE_SERVICES_ID`, `NEXT_PUBLIC_APPLE_REDIRECT_URI` |
+| Sign in with Google | Google Cloud project with OAuth client ids for web, iOS and Android | API: `GOOGLE_OAUTH_CLIENT_ID` (all three, comma-separated). Web: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Mobile: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` |
 | Barcode lookups in the scanner | UPCitemdb key (optional) | `UPCITEMDB_USER_KEY` |
 | App Store and Play Store builds | Apple Developer and Google Play Console accounts | |
 

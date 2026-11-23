@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { api, saveTokens } from "@/lib/api";
 import { ErrorNote } from "./ui";
+import { SocialButtons } from "./SocialButtons";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -33,8 +34,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     >
       <h1 className="font-display text-3xl font-bold">{mode === "login" ? "Welcome back" : "Join Haven"}</h1>
       {mode === "register" && (
-        <>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2">
             {[
               ["BUYER", "I want to shop"],
               ["SELLER", "I want to sell"],
@@ -43,7 +43,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 {l}
               </button>
             ))}
-          </div>
+        </div>
+      )}
+      <SocialButtons role={form.role as "BUYER" | "SELLER"} onDone={(r) => router.push(r.created && form.role === "SELLER" ? "/sell" : next)} />
+      {mode === "register" && (
+        <>
           <div>
             <label className="label" htmlFor="dn">Name</label>
             <input id="dn" className="input" value={form.displayName} onChange={set("displayName")} required />
