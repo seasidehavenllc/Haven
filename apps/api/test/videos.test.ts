@@ -97,6 +97,12 @@ describe("short-form video", () => {
     const following = (await fan.call("GET", "/videos/feed?tab=following")).json.videos;
     expect(following[0]).toMatchObject({ id: v.id, followingCreator: true });
     expect((await creator.call("GET", "/notifications")).json.map((n: any) => n.type)).toContain("social.follow");
+
+    const handle = (await creator.call("GET", "/me")).json.user.handle;
+    const profile = (await fan.call("GET", `/users/${handle}`)).json;
+    expect(profile).toMatchObject({ id: creator.userId, followerCount: 1, followingCount: 0, videoCount: 1, followedByMe: true, isMe: false });
+    expect(profile.email).toBeUndefined();
+    expect((await (await client())("GET", `/users/${handle}`)).json.followedByMe).toBe(false);
   });
 
   it("lets creators delete and admins remove videos, which then leave every feed", async () => {

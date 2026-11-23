@@ -1,18 +1,42 @@
 import { Link } from "expo-router";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
+import { AuctionRow } from "@/components/AuctionRow";
 import { useApi } from "@/lib/hooks";
 import { Chip, Empty, ErrorNote, ModeBadge, T, s, useColors } from "@/components/ui";
 
 export default function Live() {
   const c = useColors();
-  const { data, loading, error, reload } = useApi<any[]>("/streams");
+  const { data, loading, error, reload: reloadStreams } = useApi<any[]>("/streams");
+  const auctions = useApi<any[]>("/auctions");
+  const reload = () => (reloadStreams(), auctions.reload());
+  const soon = (auctions.data ?? []).filter((a) => a.status === "LIVE").slice(0, 3);
   return (
     <FlatList
       data={data ?? []}
       keyExtractor={(x) => x.id}
       contentContainerStyle={s.screen}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} />}
-      ListHeaderComponent={<ErrorNote error={error} />}
+      ListHeaderComponent={
+        <View style={{ gap: 10 }}>
+          <ErrorNote error={error} />
+          {soon.length > 0 && (
+            <>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <T size={17} weight="700">Auctions ending soon</T>
+                <Link href="/auctions" asChild>
+                  <Pressable hitSlop={10}>
+                    <T size={14} weight="600" color={c.brand}>See all</T>
+                  </Pressable>
+                </Link>
+              </View>
+              {soon.map((a) => (
+                <AuctionRow key={a.id} a={a} c={c} />
+              ))}
+              <T size={17} weight="700">Shows</T>
+            </>
+          )}
+        </View>
+      }
       ListEmptyComponent={loading ? undefined : <Empty title="No shows right now">When sellers go live or schedule a show, it appears here.</Empty>}
       renderItem={({ item: st }) => (
         <Link href={`/live/${st.id}`} asChild>
