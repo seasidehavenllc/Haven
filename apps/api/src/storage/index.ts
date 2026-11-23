@@ -20,6 +20,7 @@ const ALLOWED = new Map([
   ["video/mp4", "mp4"],
   ["video/quicktime", "mov"],
   ["video/webm", "webm"],
+  ["audio/mpeg", "mp3"],
 ]);
 const MAX_IMAGE = 15 * 1024 * 1024;
 export const MAX_VIDEO = 100 * 1024 * 1024;
@@ -33,15 +34,18 @@ function sniff(buf: Buffer): string | null {
   if (ftyp.startsWith("ftypheic") || ftyp.startsWith("ftypheix") || ftyp.startsWith("ftypmif1")) return "image/heic";
   if (ftyp.startsWith("ftypqt")) return "video/quicktime";
   if (buf.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return "video/webm";
+  if (buf.subarray(0, 3).toString() === "ID3" || (buf[0] === 0xff && (buf[1]! & 0xe0) === 0xe0)) return "audio/mpeg";
   if (ftyp.startsWith("ftyp")) return "video/mp4";
   return null;
 }
 
 export const uploadRoot = resolve(env.UPLOAD_DIR);
 
-export async function storeUpload(bytes: Buffer, prefix: string): Promise<StoredFile> {
+/** Stores a sniffed, size-checked file. Audio is only accepted where the caller asks for it (AI speech). */
+export async function storeUpload(bytes: Buffer, prefix: string, opts: { audio?: boolean } = {}): Promise<StoredFile> {
   const mime = sniff(bytes);
-  if (!mime || !ALLOWED.has(mime)) throw badRequest("Unsupported file type. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.");
+  if (!mime || !ALLOWED.has(mime) || (mime.startsWith("audio/") && !opts.audio)) throw badRequest("Unsupported file type. Use JPEG, PNG, WebP, HEIC, MP4, MOV or WebM.");
+  if (mime.startsWith("audio/") && bytes.length > MAX_IMAGE) throw badRequest("Audio exceeds 15 MB");
   if (mime.startsWith("image/") && bytes.length > MAX_IMAGE) throw badRequest("Image exceeds 15 MB");
   if (mime.startsWith("video/") && bytes.length > MAX_VIDEO) throw badRequest("Video exceeds 100 MB");
   const sha = createHash("sha256").update(bytes).digest("hex");

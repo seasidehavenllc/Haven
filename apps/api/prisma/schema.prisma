@@ -617,6 +617,8 @@ model StreamChatMessage {
   user      User?      @relation(fields: [userId], references: [id])
   body      String
   isAi      Boolean    @default(false) // always disclosed in UI
+  /// Spoken version of an AI message (text to speech), played to viewers who have sound on.
+  audioUrl  String?
   hidden    Boolean    @default(false)
   createdAt DateTime   @default(now())
 
@@ -898,6 +900,8 @@ model AiUsageRecord {
   productId          String?
   scanId             String?
   isTest             Boolean        @default(false)
+  /// The caller's operation key. Unique, so the same operation is never run or billed twice, even when it costs 0 credits.
+  idempotencyKey     String?        @unique
   createdAt          DateTime       @default(now())
 
   creditTxns AiCreditTransaction[]

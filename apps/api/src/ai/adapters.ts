@@ -179,12 +179,4 @@ export const textAdapters: Record<string, TextAdapter> = {
   openai: openaiAdapter,
 };
 
-/**
- * Adapter slots for voice, transcription and avatars. They are registered so admins can
- * configure providers and routing now; the streaming implementations land in Phase 6.
- */
-export const plannedAdapters = {
-  SPEECH_TO_TEXT: ["deepgram", "assemblyai", "openai-realtime"],
-  TEXT_TO_SPEECH: ["elevenlabs", "openai-tts", "cartesia"],
-  AVATAR_VIDEO: ["heygen", "tavus", "d-id"],
-} as const;
+// Voice, transcription and avatar adapters live in ./voice.ts.

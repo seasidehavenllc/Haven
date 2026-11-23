@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { speakInStream } from "./aivoice";
 import { StreamInput, CohostModes, StreamModes } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
@@ -285,7 +286,7 @@ export async function streamRoutes(app: FastifyInstance) {
     if (s.mode === "HUMAN") throw forbidden("AI is not enabled for this stream");
     if (s.aiPaused) throw forbidden("AI is paused");
     if (!s.aiPublicSpeech && s.mode !== "AI_HOST") throw forbidden("Public AI responses are disabled. Enable them in AI controls.");
-    const { messageId } = parse(z.object({ messageId: z.string() }), req.body);
+    const { messageId, speak } = parse(z.object({ messageId: z.string(), speak: z.boolean().default(false) }), req.body);
     const msg = await prisma.streamChatMessage.findFirst({ where: { id: messageId, streamId: s.id } });
     if (!msg) throw notFound("Message");
     const facts = await streamFacts(s.id);
@@ -296,7 +297,13 @@ export async function streamRoutes(app: FastifyInstance) {
     const reply = await prisma.streamChatMessage.create({ data: { streamId: s.id, body: r.output, isAi: true } });
     await prisma.aiTranscriptEntry.create({ data: { streamId: s.id, speaker: "ai", kind: "public_response", body: r.output, meta: { inReplyTo: messageId } } });
     emit(`stream:${s.id}`, "stream:chat", reply);
-    return reply;
+    if (!speak) return reply;
+    // Voice is extra: if it fails (no provider, no voice, out of credits) the text answer still stands.
+    try {
+      return await speakInStream({ streamId: s.id, sellerId: seller.id, userId: user.id, text: r.output, messageId: reply.id, idempotencyKey: `ai-reply-voice:${messageId}` });
+    } catch (e: any) {
+      return { ...reply, voiceError: e?.message ?? "Voice failed" };
+    }
   });
 
   // ── AI salespeople (configuration; autonomous hosting runtime is Phase 6) ──
