@@ -91,7 +91,7 @@ describe("AI host voice, transcription and avatars", () => {
     expect(spoken.json).toMatchObject({ isAi: true, body: text });
     expect(spoken.json.audioUrl).toMatch(/\/uploads\/ai-audio\/.+\.mp3$/);
 
-    const sent = calls.findLast((c) => c.url.includes("text-to-speech"))!;
+    const sent = [...calls].reverse().find((c) => c.url.includes("text-to-speech"))!;
     expect(sent.url).toContain("/v-rachel?");
     expect(JSON.parse(String(sent.init!.body))).toEqual({ text, model_id: "eleven_flash_v2_5" });
 
@@ -143,7 +143,7 @@ describe("AI host voice, transcription and avatars", () => {
     const r = await send("30");
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ text: "this jacket runs a little big", durationSec: 29.5 });
-    const sent = calls.findLast((c) => c.url.includes("deepgram"))!;
+    const sent = [...calls].reverse().find((c) => c.url.includes("deepgram"))!;
     expect(sent.url).toContain("model=nova-3");
     expect((sent.init!.headers as Record<string, string>).authorization).toBe("Token dg-secret");
     const usage = await prisma.aiUsageRecord.findFirstOrThrow({ where: { streamId, feature: "TRANSCRIPTION_MINUTE" } });
