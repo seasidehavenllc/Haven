@@ -16,6 +16,26 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
   const [err, setErr] = useState<any>(null);
   const [bought, setBought] = useState<string | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
+  // Browsers block sound until the viewer taps, so AI speech starts muted and plays once they turn it on.
+  const [soundOn, setSoundOn] = useState(false);
+  const soundRef = useRef(false);
+  soundRef.current = soundOn;
+  const audioQueue = useRef<string[]>([]);
+  const playing = useRef<HTMLAudioElement | null>(null);
+  const [aiTalking, setAiTalking] = useState(false);
+
+  function playNext() {
+    const url = audioQueue.current.shift();
+    if (!url) {
+      setAiTalking(false);
+      return;
+    }
+    const a = new Audio(url);
+    playing.current = a;
+    setAiTalking(true);
+    a.onended = a.onerror = () => playNext();
+    a.play().catch(() => playNext());
+  }
 
   useEffect(() => {
     if (s?.chat) setChat(s.chat);
@@ -28,6 +48,12 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
 
   useRealtime(`stream:${id}`, {
     "stream:chat": (m: any) => setChat((c) => (m.hidden ? c.filter((x) => x.id !== m.id) : [...c.slice(-199), m])),
+    "stream:chat:update": (m: any) => setChat((c) => c.map((x) => (x.id === m.id ? { ...x, ...m } : x))),
+    "stream:ai_audio": (p: { url: string }) => {
+      if (!soundRef.current) return;
+      audioQueue.current.push(p.url);
+      if (!playing.current || playing.current.ended || playing.current.paused) playNext();
+    },
     "stream:pinned": (p: any) => setData((d: any) => d && { ...d, pinnedProductId: p.productId }),
     "stream:viewers": (p: any) => setData((d: any) => d && { ...d, viewers: p.count }),
     "stream:status": () => reload(),
@@ -75,6 +101,22 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
             <ModeBadge mode={s.mode} />
             <span className="chip bg-black/60 text-white">{s.viewers} watching</span>
           </div>
+          {s.aiAgent?.voiceId && s.status === "LIVE" && (
+            <button
+              className="absolute right-3 top-3 chip bg-black/60 text-white"
+              onClick={() => {
+                const next = !soundOn;
+                setSoundOn(next);
+                if (!next) {
+                  audioQueue.current = [];
+                  playing.current?.pause();
+                  setAiTalking(false);
+                }
+              }}
+            >
+              {soundOn ? (aiTalking ? "🔊 AI speaking" : "🔊 AI voice on") : "🔇 Tap for AI voice"}
+            </button>
+          )}
           {s.aiDisclosure && <div className="absolute bottom-3 left-3 right-3 rounded-xl bg-ai/90 px-3 py-2 text-xs font-semibold text-white">🤖 {s.aiDisclosure}</div>}
           {pinned && (
             <div className="absolute bottom-14 right-3 hidden w-60 rounded-2xl bg-card p-3 text-ink shadow-xl sm:block">
@@ -143,6 +185,11 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
           {chat.map((m) => (
             <div key={m.id} className={m.isAi ? "rounded-xl bg-ai/10 p-2" : ""}>
               <b className={m.isAi ? "text-ai" : ""}>{m.isAi ? "AI assistant" : m.user?.displayName ?? "viewer"}</b> {m.body}
+              {m.audioUrl && (
+                <button className="ml-1 text-xs text-ai" title="Play" aria-label="Play what the AI said" onClick={() => new Audio(m.audioUrl).play().catch(() => {})}>
+                  🔊
+                </button>
+              )}
             </div>
           ))}
           {!chat.length && <div className="text-muted">No messages yet.</div>}

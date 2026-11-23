@@ -26,7 +26,7 @@ const featurePrices = [
   ["COHOST_MINUTE", 4, "minute"],
   ["AI_HOST_MINUTE", 30, "minute"],
   ["TRANSCRIPTION_MINUTE", 2, "minute"],
-  ["TTS_CHARACTERS", 3, "1k characters"],
+  ["TTS_CHARACTERS", 8, "1k characters"], // voice list prices run $0.015–0.06 per 1k chars
   ["AVATAR_MINUTE", 25, "minute"],
 ] as const;
 
@@ -79,9 +79,30 @@ async function main() {
   for (const [key, name, envVar] of [
     ["deepgram", "Deepgram (speech-to-text)", "DEEPGRAM_API_KEY"],
     ["elevenlabs", "ElevenLabs (voice)", "ELEVENLABS_API_KEY"],
+    ["openai-tts", "OpenAI (voice)", "OPENAI_API_KEY"],
     ["heygen", "HeyGen (avatars)", "HEYGEN_API_KEY"],
   ] as const)
     await prisma.aiProvider.upsert({ where: { key }, update: {}, create: { key, name, adapter: key, credentialEnvVar: envVar, enabled: false } });
+
+  // Voice, transcription and avatar models. Unit prices are list-price estimates in micro-dollars, so check
+  // them against your provider contract in Admin → AI providers. Providers stay disabled until an admin
+  // adds the key and turns them on.
+  const unitModels = [
+    { provider: "elevenlabs", modelId: "eleven_flash_v2_5", capability: "TEXT_TO_SPEECH", unitCostMicros: 60_000, unitName: "1k characters", feature: "TTS_CHARACTERS", priority: 10 },
+    { provider: "openai-tts", modelId: "gpt-4o-mini-tts", capability: "TEXT_TO_SPEECH", unitCostMicros: 15_000, unitName: "1k characters", feature: "TTS_CHARACTERS", priority: 20 },
+    { provider: "deepgram", modelId: "nova-3", capability: "SPEECH_TO_TEXT", unitCostMicros: 4_300, unitName: "minute", feature: "TRANSCRIPTION_MINUTE", priority: 10 },
+    { provider: "heygen", modelId: "streaming-avatar", capability: "AVATAR_VIDEO", unitCostMicros: 100_000, unitName: "minute", feature: "AVATAR_MINUTE", priority: 10 },
+  ];
+  for (const u of unitModels) {
+    const provider = await prisma.aiProvider.findUniqueOrThrow({ where: { key: u.provider } });
+    const row = await prisma.aiProviderModel.upsert({
+      where: { providerId_modelId_capability: { providerId: provider.id, modelId: u.modelId, capability: u.capability } },
+      update: {},
+      create: { providerId: provider.id, modelId: u.modelId, capability: u.capability, tier: "standard", unitCostMicros: u.unitCostMicros, unitName: u.unitName },
+    });
+    if (!(await prisma.aiRoutingRule.findFirst({ where: { modelRefId: row.id, feature: u.feature } })))
+      await prisma.aiRoutingRule.create({ data: { feature: u.feature, modelRefId: row.id, priority: u.priority } });
+  }
 
   const model: Record<string, string> = {};
   for (const m of anthropicModels) {
