@@ -1,5 +1,5 @@
 {
-  "name": "@glint/web",
+  "name": "@haven/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@glint/shared": "workspace:*",
+    "@haven/shared": "workspace:*",
     "next": "15.5.29",
     "react": "19.1.10",
     "react-dom": "19.1.10",

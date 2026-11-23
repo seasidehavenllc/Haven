@@ -1,12 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { AuctionInput, BidInput, AddressInput, formatMoney } from "@glint/shared";
+import { AuctionInput, BidInput, AddressInput, formatMoney } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { emit } from "../realtime";
 import { placeOrder } from "./commerce";
+import { notify, createNotifications, deliver } from "../notify";
 
 const ANTI_SNIPE_MS = 15_000;
 
@@ -54,15 +55,15 @@ export async function placeBid(auctionId: string, bidderId: string, amountCents:
         ...(extend ? { endsAt: new Date(now.getTime() + ANTI_SNIPE_MS) } : {}),
       },
     });
-    if (prevLeader)
-      await tx.notification.create({
-        data: { userId: prevLeader.bidderId, type: "auction.outbid", title: "You've been outbid", body: `New high bid ${formatMoney(amountCents)}`, link: `/auctions/${auctionId}` },
-      });
-    return { bid, auction: updated, prevLeaderId: prevLeader?.bidderId };
+    const outbid =
+      prevLeader && prevLeader.bidderId !== bidderId
+        ? await createNotifications(tx, [{ userId: prevLeader.bidderId, type: "auction.outbid", title: "You've been outbid", body: `New high bid ${formatMoney(amountCents)}`, link: `/auctions/${auctionId}`, data: { auctionId } }])
+        : [];
+    return { bid, auction: updated, outbid };
   });
   emit(`auction:${auctionId}`, "auction:bid", { auctionId, amountCents, bidId: res.bid.id, endsAt: res.auction.endsAt, bidderId });
   if (res.auction.streamId) emit(`stream:${res.auction.streamId}`, "auction:bid", { auctionId, amountCents, endsAt: res.auction.endsAt });
-  if (res.prevLeaderId) emit(`user:${res.prevLeaderId}`, "notification", { type: "auction.outbid", auctionId });
+  void deliver(res.outbid);
   return { bid: res.bid, replay: false };
 }
 
@@ -81,9 +82,7 @@ export async function closeDueAuctions() {
     if (!closed) continue;
     emit(`auction:${id}`, "auction:closed", { auctionId: id, winnerId: closed.winnerId, priceCents: closed.currentPriceCents, reserveMet: closed.reserveMet });
     if (closed.winnerId)
-      await prisma.notification.create({
-        data: { userId: closed.winnerId, type: "auction.won", title: "You won an auction", body: `Complete checkout for ${formatMoney(closed.currentPriceCents ?? 0)}`, link: `/auctions/${id}` },
-      });
+      await notify({ userId: closed.winnerId, type: "auction.won", title: "You won an auction", body: `Complete checkout for ${formatMoney(closed.currentPriceCents ?? 0)}`, link: `/auctions/${id}`, data: { auctionId: id } });
   }
   return due.length;
 }

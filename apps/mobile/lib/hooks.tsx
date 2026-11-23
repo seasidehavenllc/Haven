@@ -59,9 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export const useMe = () => useContext(MeCtx);
 
 let shared: Socket | null = null;
+/** Reconnect so the server sees the new token; listeners and room re-joins (on "connect") carry over. */
 function resetSocket() {
-  shared?.disconnect();
-  shared = null;
+  shared?.disconnect().connect();
 }
 function socket() {
   // Token is read lazily on each (re)connect so a fresh login is picked up.

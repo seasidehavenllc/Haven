@@ -46,7 +46,7 @@ export default function SellerOverview() {
           <span>
             <b>{scans.data.length}</b> AI drafts waiting for your review
           </span>
-          <span className="text-glint">Review →</span>
+          <span className="text-brand">Review →</span>
         </Link>
       )}
       {!!lowStock.length && (

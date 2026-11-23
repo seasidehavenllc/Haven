@@ -1,4 +1,4 @@
-import type { AiFeature } from "@glint/shared";
+import type { AiFeature } from "@haven/shared";
 import { prisma } from "../db";
 import { paymentRequired, notConfigured, HttpError } from "../lib/errors";
 import { emit } from "../realtime";

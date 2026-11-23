@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "@/lib/hooks";
+import { AuthProvider, useMe } from "@/lib/hooks";
+import { usePush } from "@/lib/push";
 import { useColors } from "@/components/ui";
 
 export default function Root() {
@@ -9,7 +10,8 @@ export default function Root() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="auto" />
+        <PushBridge />
+        <StatusBar style="light" />
         <Stack screenOptions={{ headerStyle: { backgroundColor: c.paper }, headerTintColor: c.ink, contentStyle: { backgroundColor: c.paper }, headerBackTitle: "Back" }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="p/[id]" options={{ title: "" }} />
@@ -17,8 +19,15 @@ export default function Root() {
           <Stack.Screen name="cart" options={{ title: "Cart" }} />
           <Stack.Screen name="scan/[id]" options={{ title: "Review listing" }} />
           <Stack.Screen name="studio/[id]" options={{ title: "Studio" }} />
+          <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>
   );
+}
+
+function PushBridge() {
+  const { me } = useMe();
+  usePush(!!me);
+  return null;
 }

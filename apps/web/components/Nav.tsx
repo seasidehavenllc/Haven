@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMe } from "@/lib/hooks";
 import { api, clearTokens } from "@/lib/api";
+import { HavenMark } from "./HavenMark";
+import { NotificationBell } from "./NotificationBell";
 
 export function Nav() {
   const { me } = useMe();
@@ -14,8 +16,9 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-        <Link href="/" className="font-display text-xl font-bold">
-          glint<span className="text-glint">.</span>
+        <Link href="/" className="flex items-center gap-2 font-display text-xl font-bold" aria-label="Haven home">
+          <HavenMark size={30} className="text-white" />
+          Haven
         </Link>
         <nav className="hidden gap-4 text-sm font-medium md:flex">
           <Link href="/live">Live</Link>
@@ -36,6 +39,7 @@ export function Nav() {
         <div className="flex items-center gap-2 text-sm">
           {me ? (
             <>
+              <NotificationBell />
               <Link href="/cart" className="btn-ghost px-3">
                 Cart
               </Link>
@@ -79,3 +83,4 @@ export function Nav() {
     </header>
   );
 }
+

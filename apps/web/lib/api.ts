@@ -2,7 +2,7 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 type Tokens = { accessToken: string; refreshToken?: string };
-const KEY = "glint.auth";
+const KEY = "haven.auth";
 
 function read(): Tokens | null {
   try {
@@ -17,13 +17,13 @@ export function saveTokens(t: Tokens) {
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...cur, ...t }));
   } catch {}
-  window.dispatchEvent(new Event("glint-auth"));
+  window.dispatchEvent(new Event("haven-auth"));
 }
 export function clearTokens() {
   try {
     localStorage.removeItem(KEY);
   } catch {}
-  window.dispatchEvent(new Event("glint-auth"));
+  window.dispatchEvent(new Event("haven-auth"));
 }
 export const accessToken = () => read()?.accessToken ?? null;
 

@@ -46,7 +46,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           {p.media.length > 1 && (
             <div className="mt-2 flex gap-2">
               {p.media.map((m: any, i: number) => (
-                <button key={m.id} onClick={() => setImg(i)} className={`h-16 w-16 overflow-hidden rounded-xl border-2 ${i === img ? "border-glint" : "border-transparent"}`}>
+                <button key={m.id} onClick={() => setImg(i)} className={`h-16 w-16 overflow-hidden rounded-xl border-2 ${i === img ? "border-brand" : "border-transparent"}`}>
                   <img src={m.url} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
@@ -75,7 +75,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <div className="label">Options</div>
               <div className="flex flex-wrap gap-2">
                 {p.variants.map((x: any) => (
-                  <button key={x.id} disabled={x.quantity === 0} onClick={() => setVariantId(x.id)} className={`btn-ghost ${x.id === v.id ? "border-glint bg-glint/10" : ""} ${x.quantity === 0 ? "line-through" : ""}`}>
+                  <button key={x.id} disabled={x.quantity === 0} onClick={() => setVariantId(x.id)} className={`btn-ghost ${x.id === v.id ? "border-brand bg-brand/10" : ""} ${x.quantity === 0 ? "line-through" : ""}`}>
                     {x.name}
                   </button>
                 ))}

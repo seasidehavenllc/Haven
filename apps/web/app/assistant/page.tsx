@@ -49,7 +49,7 @@ export default function Assistant() {
       )}
       {turns.map((t, i) => (
         <div key={i} className="space-y-3">
-          <div className="ml-auto w-fit max-w-[80%] rounded-2xl bg-ink px-4 py-2 text-sm text-paper">{t.q}</div>
+          <div className="ml-auto w-fit max-w-[80%] rounded-2xl bg-brand px-4 py-2 text-sm text-brand-ink">{t.q}</div>
           {t.a ? (
             <div className="space-y-3">
               <div className="w-fit max-w-[90%] rounded-2xl bg-ai/10 px-4 py-2 text-sm">{t.a}</div>

@@ -38,7 +38,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
           {tabs.map(([href, label]) => {
             const active = href === "/seller" ? path === href : path.startsWith(href!);
             return (
-              <Link key={href} href={href!} className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium ${active ? "bg-ink text-paper" : "hover:bg-card"}`}>
+              <Link key={href} href={href!} className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium ${active ? "bg-brand/15 text-brand-light ring-1 ring-brand/40" : "hover:bg-card"}`}>
                 {label}
               </Link>
             );

@@ -54,7 +54,7 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
       <section className="space-y-3">
-        <div className="relative aspect-video overflow-hidden rounded-3xl bg-ink text-paper">
+        <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-stage text-ink">
           <div className="absolute inset-0 grid place-items-center p-6 text-center">
             {s.status === "SCHEDULED" ? (
               <div>
@@ -73,7 +73,7 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
           <div className="absolute left-3 top-3 flex gap-2">
             {s.status === "LIVE" && <span className="chip bg-live text-white">Live</span>}
             <ModeBadge mode={s.mode} />
-            <span className="chip bg-ink/70 text-paper">{s.viewers} watching</span>
+            <span className="chip bg-black/60 text-white">{s.viewers} watching</span>
           </div>
           {s.aiDisclosure && <div className="absolute bottom-3 left-3 right-3 rounded-xl bg-ai/90 px-3 py-2 text-xs font-semibold text-white">🤖 {s.aiDisclosure}</div>}
           {pinned && (
@@ -122,14 +122,14 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
         <h2 className="font-display text-lg font-semibold">In this show</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {s.products.map(({ product: p }: any) => (
-            <div key={p.id} className={`panel p-2 ${p.id === s.pinnedProductId ? "ring-2 ring-glint" : ""}`}>
+            <div key={p.id} className={`panel p-2 ${p.id === s.pinnedProductId ? "ring-2 ring-brand" : ""}`}>
               <Link href={`/p/${p.id}`} className="block aspect-square overflow-hidden rounded-xl bg-line">
                 {p.media[0] && <img src={p.media[0].url} alt="" className="h-full w-full object-cover" />}
               </Link>
               <div className="mt-1 line-clamp-1 text-sm">{p.title}</div>
               <div className="flex items-center justify-between text-sm font-semibold">
                 <Money cents={minPrice(p)} />
-                <button className="text-xs text-glint disabled:text-muted" disabled={stock(p) === 0} onClick={() => buy(p.variants.find((v: any) => v.quantity > 0)?.id)}>
+                <button className="text-xs text-brand disabled:text-muted" disabled={stock(p) === 0} onClick={() => buy(p.variants.find((v: any) => v.quantity > 0)?.id)}>
                   {stock(p) === 0 ? "Sold out" : "Add"}
                 </button>
               </div>

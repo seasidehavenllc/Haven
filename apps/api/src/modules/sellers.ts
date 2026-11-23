@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { StorefrontInput } from "@glint/shared";
+import { StorefrontInput } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser, signAccessToken } from "../lib/auth";
 import { conflict, notFound } from "../lib/errors";

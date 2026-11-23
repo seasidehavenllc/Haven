@@ -107,7 +107,7 @@ export default function Studio() {
       {st.products.map(({ product: p, hidden }: any) => {
         const pinned = st.pinnedProductId === p.id;
         return (
-          <View key={p.id} style={[s.card, { borderColor: pinned ? c.glint : c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", opacity: hidden ? 0.55 : 1 }]}>
+          <View key={p.id} style={[s.card, { borderColor: pinned ? c.brand : c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", opacity: hidden ? 0.55 : 1 }]}>
             <View style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", backgroundColor: c.line }}>{p.media[0] && <Image source={{ uri: p.media[0].url }} style={{ width: 48, height: 48 }} />}</View>
             <View style={{ flex: 1 }}>
               <T size={14} weight="600" lines={1}>{p.title}</T>

@@ -1,16 +1,16 @@
 {
-  "name": "glint",
+  "name": "haven",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
-    "dev:api": "pnpm --filter @glint/api dev",
-    "dev:web": "pnpm --filter @glint/web dev",
-    "dev:mobile": "pnpm --filter @glint/mobile start",
+    "dev:api": "pnpm --filter @haven/api dev",
+    "dev:web": "pnpm --filter @haven/web dev",
+    "dev:mobile": "pnpm --filter @haven/mobile start",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @glint/api test",
-    "db:migrate": "pnpm --filter @glint/api db:migrate",
-    "db:seed": "pnpm --filter @glint/api db:seed"
+    "test": "pnpm --filter @haven/api test",
+    "db:migrate": "pnpm --filter @haven/api db:migrate",
+    "db:seed": "pnpm --filter @haven/api db:seed"
   }
 }

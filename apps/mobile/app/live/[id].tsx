@@ -70,7 +70,7 @@ export default function LiveViewer() {
       <View style={{ padding: 12, gap: 8 }}>
         <T size={18} weight="700" lines={1}>{st.title}</T>
         {pinned && (
-          <View style={[s.card, { borderColor: c.glint, backgroundColor: c.card, flexDirection: "row", alignItems: "center", padding: 10 }]}>
+          <View style={[s.card, { borderColor: c.brand, backgroundColor: c.card, flexDirection: "row", alignItems: "center", padding: 10 }]}>
             <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: c.line }}>{pinned.media[0] && <Image source={{ uri: pinned.media[0].url }} style={{ width: 52, height: 52 }} />}</View>
             <View style={{ flex: 1 }}>
               <T size={14} weight="600" lines={1}>{pinned.title}</T>
@@ -82,7 +82,7 @@ export default function LiveViewer() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {st.products.map(({ product: p }: any) => (
             <Pressable key={p.id} onPress={() => add(p)} style={{ width: 92, opacity: stock(p) === 0 ? 0.5 : 1 }}>
-              <View style={{ width: 92, height: 92, borderRadius: 12, overflow: "hidden", backgroundColor: c.line, borderWidth: p.id === st.pinnedProductId ? 2 : 0, borderColor: c.glint }}>{p.media[0] && <Image source={{ uri: p.media[0].url }} style={{ width: 92, height: 92 }} />}</View>
+              <View style={{ width: 92, height: 92, borderRadius: 12, overflow: "hidden", backgroundColor: c.line, borderWidth: p.id === st.pinnedProductId ? 2 : 0, borderColor: c.brand }}>{p.media[0] && <Image source={{ uri: p.media[0].url }} style={{ width: 92, height: 92 }} />}</View>
               <T size={11} lines={1}>{p.title}</T>
               <T size={12} weight="700">{stock(p) === 0 ? "Sold out" : `+ ${(minPrice(p)! / 100).toFixed(2)}`}</T>
             </Pressable>

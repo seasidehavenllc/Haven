@@ -1,3 +1,4 @@
+import { notificationRoutes } from "./modules/notifications";
 import Fastify, { type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -67,21 +68,12 @@ export async function buildApp() {
     video: { provider: videoProvider.id, configured: videoProvider.configured() },
     ai: await featureAvailability(),
     shipping: { configured: !!(process.env.SHIPPO_API_KEY || process.env.EASYPOST_API_KEY) },
-    push: { configured: !!process.env.EXPO_ACCESS_TOKEN },
-    email: { configured: !!process.env.RESEND_API_KEY },
+    push: { configured: true, provider: "expo" },
+    email: { configured: !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM },
     socialSignIn: { apple: !!process.env.APPLE_CLIENT_ID, google: !!process.env.GOOGLE_OAUTH_CLIENT_ID },
   }));
 
-  app.get("/notifications", async (req) => {
-    const u = requireUser(req);
-    return prisma.notification.findMany({ where: { userId: u.id }, orderBy: { createdAt: "desc" }, take: 50 });
-  });
-  app.post("/notifications/read", async (req) => {
-    const u = requireUser(req);
-    await prisma.notification.updateMany({ where: { userId: u.id, readAt: null }, data: { readAt: new Date() } });
-    return { ok: true };
-  });
-
+  await app.register(notificationRoutes);
   await app.register(authRoutes);
   await app.register(sellerRoutes);
   await app.register(catalogRoutes);

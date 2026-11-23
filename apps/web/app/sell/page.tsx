@@ -41,7 +41,7 @@ export default function Sell() {
       <div>
         <label className="label" htmlFor="slug">Store address</label>
         <div className="flex items-center gap-1 text-sm">
-          <span className="text-muted">glint/store/</span>
+          <span className="text-muted">haven/store/</span>
           <input id="slug" className="input" required value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} />
         </div>
       </div>

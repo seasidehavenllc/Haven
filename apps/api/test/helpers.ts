@@ -118,7 +118,7 @@ export async function enableTestAi() {
 export const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082", "hex");
 
 export function multipart(files: { name: string; data: Buffer; type: string }[], fields: Record<string, string> = {}) {
-  const boundary = "----glinttest" + randomUUID();
+  const boundary = "----brandtest" + randomUUID();
   const chunks: Buffer[] = [];
   for (const [k, v] of Object.entries(fields)) chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));
   for (const f of files) {

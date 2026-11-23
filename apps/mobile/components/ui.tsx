@@ -1,12 +1,11 @@
-import { formatMoney } from "@glint/shared";
+import { formatMoney } from "@haven/shared";
 import { Link } from "expo-router";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View, useColorScheme, type TextInputProps, type ViewStyle } from "react-native";
 
-export const palette = {
-  light: { ink: "#14121a", paper: "#faf8f5", card: "#ffffff", muted: "#6b6776", line: "#e7e2dc", glint: "#ff5a36", ai: "#6d4aff", live: "#e0245e", ok: "#108a5b", warn: "#b26a00" },
-  dark: { ink: "#f4f1ec", paper: "#0f0e13", card: "#1a1820", muted: "#9b97a6", line: "#2c2934", glint: "#ff6b4a", ai: "#8f74ff", live: "#ff4f84", ok: "#3cc48b", warn: "#f0a63a" },
-};
+// Seaside Haven palette (seasidehavenllc.com), dark by design to match the brand site.
+const haven = { ink: "#f4f7fa", paper: "#03060a", card: "#0b131c", muted: "#9aa9b7", line: "#1a2633", brand: "#149ab8", brandLight: "#5fd3e8", ai: "#6670f0", live: "#ff4d6d", ok: "#3fd29a", warn: "#f5b84a" };
+export const palette = { light: haven, dark: haven };
 export const useColors = () => palette[useColorScheme() === "dark" ? "dark" : "light"];
 
 export function T({ children, style, size = 15, weight, color, lines }: { children: ReactNode; style?: any; size?: number; weight?: "400" | "500" | "600" | "700" | "800"; color?: string; lines?: number }) {
@@ -20,7 +19,7 @@ export function T({ children, style, size = 15, weight, color, lines }: { childr
 
 export function Btn({ title, onPress, kind = "primary", disabled, busy, style }: { title: string; onPress?: () => void; kind?: "primary" | "ghost" | "ai" | "danger"; disabled?: boolean; busy?: boolean; style?: ViewStyle }) {
   const c = useColors();
-  const bg = kind === "primary" ? c.glint : kind === "ai" ? c.ai : kind === "danger" ? c.live : "transparent";
+  const bg = kind === "primary" ? c.brand : kind === "ai" ? c.ai : kind === "danger" ? c.live : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -70,7 +69,7 @@ export function Loading() {
   const c = useColors();
   return (
     <View style={{ flex: 1, padding: 40, alignItems: "center", backgroundColor: c.paper }}>
-      <ActivityIndicator color={c.glint} />
+      <ActivityIndicator color={c.brand} />
     </View>
   );
 }

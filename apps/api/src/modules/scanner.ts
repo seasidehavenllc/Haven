@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { PublishDraftInput } from "@glint/shared";
+import { PublishDraftInput } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller } from "../lib/auth";
 import { badRequest, conflict, notFound } from "../lib/errors";

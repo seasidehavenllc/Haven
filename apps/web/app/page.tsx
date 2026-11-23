@@ -11,26 +11,26 @@ export default function Home() {
   const live = streams.data?.filter((s) => s.status === "LIVE") ?? [];
   return (
     <div className="space-y-12">
-      <section className="grid items-center gap-6 rounded-3xl bg-ink p-8 text-paper md:grid-cols-[1.4fr_1fr] md:p-12">
+      <section className="grid items-center gap-6 relative overflow-hidden rounded-3xl border border-line bg-stage bg-[radial-gradient(700px_320px_at_30%_0%,rgba(20,154,184,0.35),transparent_70%)] p-8 text-ink md:grid-cols-[1.4fr_1fr] md:p-12">
         <div>
           <h1 className="font-display text-4xl font-bold leading-tight md:text-6xl">
             Shop it live.
             <br />
-            <span className="text-glint">Sell it with a photo.</span>
+            <span className="bg-gradient-to-r from-ink via-brand-light to-brand bg-clip-text text-transparent">Sell it with a photo.</span>
           </h1>
-          <p className="mt-4 max-w-lg text-paper/70">Live shows, auctions and real stores in one place. Sellers can go live themselves, with an AI co-host, or let an AI salesperson run the show.</p>
+          <p className="mt-4 max-w-lg text-muted">Live shows, auctions and real stores in one place. Sellers can go live themselves, with an AI co-host, or let an AI salesperson run the show.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/live" className="btn-primary">
               Watch live
             </Link>
-            <Link href="/sell" className="btn rounded-full border border-paper/30">
+            <Link href="/sell" className="btn-ghost">
               Start selling
             </Link>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
           {["Snap a photo", "AI writes the listing", "You confirm the price", "It's in your live menu", "Go live", "Sell"].map((s, i) => (
-            <div key={s} className={`rounded-2xl p-3 ${i % 2 ? "bg-paper/10" : "bg-glint/90 text-glint-ink"}`}>
+            <div key={s} className={`rounded-2xl p-3 ${i % 2 ? "border border-line bg-card" : "bg-brand/90 text-brand-ink"}`}>
               <div className="font-display text-lg font-bold">{i + 1}</div>
               {s}
             </div>

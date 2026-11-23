@@ -21,7 +21,7 @@ export default function Admin() {
       <h1 className="font-display text-3xl font-bold">Platform control</h1>
       <nav className="flex gap-1 overflow-x-auto">
         {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${tab === t ? "bg-ink text-paper" : "hover:bg-card"}`}>
+          <button key={t} onClick={() => setTab(t)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${tab === t ? "bg-brand text-brand-ink" : "hover:bg-card"}`}>
             {t}
           </button>
         ))}
@@ -290,7 +290,7 @@ function FeaturePrice({ f, onSave }: { f: any; onSave: (c: number) => void }) {
       <span className="flex-1">{f.feature}</span>
       <input className="input w-20" value={v} onChange={(e) => setV(e.target.value.replace(/\D/g, ""))} />
       <span className="w-24 text-xs text-muted">/ {f.unitName}</span>
-      <button className="text-xs text-glint" onClick={() => onSave(Number(v))}>
+      <button className="text-xs text-brand" onClick={() => onSave(Number(v))}>
         Save
       </button>
     </div>

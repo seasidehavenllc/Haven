@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { StreamInput, CohostModes, StreamModes } from "@glint/shared";
+import { StreamInput, CohostModes, StreamModes } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
@@ -9,6 +9,7 @@ import { emit, viewerCount } from "../realtime";
 import { videoProvider } from "../video";
 import { runText } from "../ai/gateway";
 import { randomUUID } from "node:crypto";
+import { notify, createNotifications, deliver } from "../notify";
 
 const menuInclude = {
   products: {
@@ -134,16 +135,14 @@ export async function streamRoutes(app: FastifyInstance) {
         where: { id: s.id },
         data: {
           status: next,
-          ...(action === "start" ? { startedAt: new Date(), videoProvider: videoProvider.id, videoRoom: s.videoRoom ?? `glint-${s.id}` } : {}),
+          ...(action === "start" ? { startedAt: new Date(), videoProvider: videoProvider.id, videoRoom: s.videoRoom ?? `haven-${s.id}` } : {}),
           ...(action === "end" ? { endedAt: new Date() } : {}),
         },
       });
       emit(`stream:${s.id}`, "stream:status", { streamId: s.id, status: next });
       if (action === "start") {
         const followers = await prisma.follow.findMany({ where: { followee: { seller: { id: seller.id } } }, select: { followerId: true } });
-        if (followers.length)
-          await prisma.notification.createMany({ data: followers.map((f) => ({ userId: f.followerId, type: "stream.live", title: `${seller.businessName} is live`, body: s.title, link: `/live/${s.id}` })) });
-        for (const f of followers) emit(`user:${f.followerId}`, "notification", { type: "stream.live", streamId: s.id });
+        await notify(followers.map((f) => ({ userId: f.followerId, type: "stream.live", title: `${seller.businessName} is live`, body: s.title, link: `/live/${s.id}`, data: { streamId: s.id } })));
       }
       return { ...updated, video: { configured: videoProvider.configured() } };
     });

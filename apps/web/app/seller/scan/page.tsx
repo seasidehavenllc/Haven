@@ -60,12 +60,12 @@ export default function ScanPage() {
               ["batch", "Many items, one photo each"],
             ] as const
           ).map(([v, l]) => (
-            <button key={v} onClick={() => setMode(v)} className={`btn-ghost ${mode === v ? "border-glint bg-glint/10" : ""}`}>
+            <button key={v} onClick={() => setMode(v)} className={`btn-ghost ${mode === v ? "border-brand bg-brand/10" : ""}`}>
               {l}
             </button>
           ))}
         </div>
-        <button onClick={() => fileRef.current?.click()} className="grid w-full place-items-center rounded-2xl border-2 border-dashed border-line p-10 text-center hover:border-glint">
+        <button onClick={() => fileRef.current?.click()} className="grid w-full place-items-center rounded-2xl border-2 border-dashed border-line p-10 text-center hover:border-brand">
           <div className="text-4xl">📷</div>
           <div className="mt-2 font-semibold">{files.length ? `${files.length} photo${files.length > 1 ? "s" : ""} ready` : "Take or choose photos"}</div>
           <div className="text-xs text-muted">{mode === "single" ? "Front, back, labels and any wear. Up to 8." : "Up to 25 items at once."}</div>
@@ -236,7 +236,7 @@ function DraftCard({ scan, cats, duplicateOf, onDone }: { scan: any; cats: any[]
           <label className="label">Tags</label>
           <input className="input" value={f.tags} onChange={set("tags")} />
         </div>
-        <div className="grid grid-cols-2 gap-3 rounded-xl border border-glint/40 bg-glint/5 p-3 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-brand/40 bg-brand/5 p-3 lg:grid-cols-3">
           <div>
             <label className="label">Your price ($)</label>
             <input
@@ -258,7 +258,7 @@ function DraftCard({ scan, cats, duplicateOf, onDone }: { scan: any; cats: any[]
               <>
                 <div className="label">Suggested (estimate)</div>
                 <Money cents={r.price.lowCents} />–<Money cents={r.price.highCents} />
-                <button type="button" className="ml-2 text-glint underline" onClick={() => setF({ ...f, price: (r.price.suggestedCents / 100).toFixed(2) })}>
+                <button type="button" className="ml-2 text-brand underline" onClick={() => setF({ ...f, price: (r.price.suggestedCents / 100).toFixed(2) })}>
                   use <Money cents={r.price.suggestedCents} />
                 </button>
                 <div className="mt-1 text-muted">{r.price.basis}</div>
