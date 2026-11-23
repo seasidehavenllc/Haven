@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { LoginInput, RegisterInput } from "@haven/shared";
 import { prisma } from "../db";
 import { hashPassword, issueSession, requireUser, sha256, verifyPassword, signAccessToken } from "../lib/auth";
-import { conflict, unauthorized } from "../lib/errors";
+import { badRequest, conflict, unauthorized } from "../lib/errors";
+import { socialConfigured, verifySocialToken } from "../lib/social";
+import { z } from "zod";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
 
@@ -91,14 +93,61 @@ export async function authRoutes(app: FastifyInstance) {
     };
   });
 
-  /** Social sign-in endpoints exist but refuse until provider credentials are configured. */
-  for (const p of ["apple", "google"] as const) {
-    app.post(`/auth/${p}`, async (_req, reply) => {
-      const envVar = p === "apple" ? "APPLE_CLIENT_ID" : "GOOGLE_OAUTH_CLIENT_ID";
-      if (!process.env[envVar]) return reply.code(503).send({ error: "not_configured", message: `${p} sign-in is not configured`, details: { requiredEnv: [envVar] } });
-      return reply.code(501).send({ error: "not_implemented", message: `${p} ID-token verification is scheduled for Phase 9` });
+  /**
+   * Sign in with Apple or Google. The client sends the provider's ID token; we verify it, then sign in
+   * the linked account, link a verified email to the existing account, or create a new account.
+   */
+  for (const provider of ["apple", "google"] as const) {
+    app.post(`/auth/${provider}`, strict, async (req) => {
+      const body = parse(
+        z.object({
+          idToken: z.string().min(20).max(8000),
+          nonce: z.string().max(200).optional(),
+          // Apple only sends the name to the app, once, on the first sign-in.
+          name: z.string().trim().max(80).optional(),
+          role: z.enum(["BUYER", "SELLER"]).default("BUYER"),
+        }),
+        req.body,
+      );
+      const id = await verifySocialToken(provider, body.idToken, body.nonce);
+      let created = false;
+      let user = (await prisma.oAuthAccount.findUnique({ where: { provider_providerId: { provider, providerId: id.sub } }, include: { user: true } }))?.user ?? null;
+      if (!user) {
+        // Only a provider-verified email may attach to an existing account.
+        const byEmail = id.emailVerified && id.email ? await prisma.user.findUnique({ where: { email: id.email } }) : null;
+        if (byEmail) {
+          user = byEmail;
+          await prisma.oAuthAccount.create({ data: { userId: user.id, provider, providerId: id.sub } });
+          await audit(prisma, { actorId: user.id, action: `auth.${provider}.link`, ip: req.ip });
+        } else {
+          if (!id.email) throw badRequest(`Your ${provider === "apple" ? "Apple" : "Google"} account didn't share an email address. Sign up with email instead.`);
+          if (!id.emailVerified) throw badRequest("That email address isn't verified with your provider yet.");
+          const displayName = (body.name || id.name || id.email.split("@")[0]!).slice(0, 80);
+          user = await prisma.user.create({
+            data: {
+              email: id.email,
+              handle: await freeHandle(body.name || id.name || id.email.split("@")[0]!),
+              displayName,
+              avatarUrl: id.picture,
+              roles: (body.role === "SELLER" ? ["BUYER", "SELLER"] : ["BUYER"]) as any,
+              oauthAccounts: { create: { provider, providerId: id.sub } },
+            },
+          });
+          created = true;
+          await audit(prisma, { actorId: user.id, action: `auth.${provider}.register`, ip: req.ip });
+        }
+      }
+      if (user.status !== "ACTIVE") throw unauthorized("This account is not active");
+      await audit(prisma, { actorId: user.id, action: `auth.${provider}.login`, ip: req.ip });
+      const tokens = await issueSession(user.id, { ua: req.headers["user-agent"], ip: req.ip });
+      return { user: publicUser(user), created, ...tokens };
     });
   }
+
+  app.get("/auth/providers", async () => ({
+    apple: socialConfigured("apple"),
+    google: socialConfigured("google"),
+  }));
 
   // Exposed for tests / token refresh after role change.
   app.post("/auth/token", async (req) => {
@@ -106,4 +155,15 @@ export async function authRoutes(app: FastifyInstance) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: u.id }, include: { seller: true } });
     return { accessToken: await signAccessToken({ id: user.id, roles: user.roles, sellerId: user.seller?.id ?? null }) };
   });
+}
+
+/** A unique handle from a name or email, e.g. "Riley Shaw" -> "rileyshaw" or "rileyshaw_4821". */
+async function freeHandle(from: string) {
+  let base = from.toLowerCase().normalize("NFKD").replace(/[^a-z0-9_]/g, "").slice(0, 24);
+  if (base.length < 3) base = `user${base}`;
+  for (let i = 0; i < 6; i++) {
+    const h = i === 0 ? base : `${base}_${Math.floor(1000 + Math.random() * 9000)}`;
+    if (!(await prisma.user.findUnique({ where: { handle: h } }))) return h;
+  }
+  return `${base.slice(0, 16)}_${Date.now().toString(36)}`;
 }

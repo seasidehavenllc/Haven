@@ -25,6 +25,7 @@ import { activePaymentProvider } from "./payments";
 import { videoProvider } from "./video";
 import { shippingRoutes } from "./modules/shipping";
 import { activeShippingProvider } from "./shipping";
+import { socialConfigured } from "./lib/social";
 
 // BigInt (micro-dollar costs) → JSON number
 (BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
@@ -72,7 +73,7 @@ export async function buildApp() {
     shipping: { configured: !!activeShippingProvider(), provider: activeShippingProvider()?.id ?? "manual", tracking: !!process.env.SHIPPING_WEBHOOK_TOKEN },
     push: { configured: true, provider: "expo" },
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM },
-    socialSignIn: { apple: !!process.env.APPLE_CLIENT_ID, google: !!process.env.GOOGLE_OAUTH_CLIENT_ID },
+    socialSignIn: { apple: socialConfigured("apple"), google: socialConfigured("google") },
   }));
 
   await app.register(notificationRoutes);
