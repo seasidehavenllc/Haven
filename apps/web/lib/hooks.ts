@@ -55,10 +55,28 @@ export function useMe() {
 }
 
 let shared: Socket | null = null;
+let sharedToken: string | null = null;
+const rooms = new Map<string, { host?: boolean }>();
+/**
+ * One socket per tab. After sign in or out it reconnects with the new token so the server puts it in
+ * the right `user:` room, and on every (re)connect it re-joins the rooms open components asked for.
+ */
 function socket() {
-  if (!shared) shared = io(API_URL, { auth: { token: accessToken() }, transports: ["websocket", "polling"] });
+  if (!shared) {
+    sharedToken = accessToken();
+    shared = io(API_URL, { auth: { token: sharedToken }, transports: ["websocket", "polling"] });
+    shared.on("connect", () => rooms.forEach((o, r) => shared!.emit("subscribe", r, o)));
+  }
   return shared;
 }
+if (typeof window !== "undefined")
+  window.addEventListener("haven-auth", () => {
+    const t = accessToken();
+    if (!shared || t === sharedToken) return;
+    sharedToken = t;
+    shared.auth = { token: t };
+    shared.disconnect().connect();
+  });
 
 /** Subscribe to a realtime room and handle events. */
 export function useRealtime(room: string | null, handlers: Record<string, (p: any) => void>, opts?: { host?: boolean }) {
@@ -69,9 +87,15 @@ export function useRealtime(room: string | null, handlers: Record<string, (p: an
     const evts = Object.keys(ref.current);
     const fns = evts.map((e) => [e, (p: any) => ref.current[e]?.(p)] as const);
     fns.forEach(([e, f]) => s.on(e, f));
-    if (room) s.emit("subscribe", room, opts ?? {});
+    if (room) {
+      rooms.set(room, opts ?? {});
+      s.emit("subscribe", room, opts ?? {});
+    }
     return () => {
-      if (room) s.emit("unsubscribe", room);
+      if (room) {
+        rooms.delete(room);
+        s.emit("unsubscribe", room);
+      }
       fns.forEach(([e, f]) => s.off(e, f));
     };
   }, [room]);

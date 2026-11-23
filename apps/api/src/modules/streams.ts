@@ -9,6 +9,7 @@ import { emit, viewerCount } from "../realtime";
 import { videoProvider } from "../video";
 import { runText } from "../ai/gateway";
 import { randomUUID } from "node:crypto";
+import { notify, createNotifications, deliver } from "../notify";
 
 const menuInclude = {
   products: {
@@ -141,9 +142,7 @@ export async function streamRoutes(app: FastifyInstance) {
       emit(`stream:${s.id}`, "stream:status", { streamId: s.id, status: next });
       if (action === "start") {
         const followers = await prisma.follow.findMany({ where: { followee: { seller: { id: seller.id } } }, select: { followerId: true } });
-        if (followers.length)
-          await prisma.notification.createMany({ data: followers.map((f) => ({ userId: f.followerId, type: "stream.live", title: `${seller.businessName} is live`, body: s.title, link: `/live/${s.id}` })) });
-        for (const f of followers) emit(`user:${f.followerId}`, "notification", { type: "stream.live", streamId: s.id });
+        await notify(followers.map((f) => ({ userId: f.followerId, type: "stream.live", title: `${seller.businessName} is live`, body: s.title, link: `/live/${s.id}`, data: { streamId: s.id } })));
       }
       return { ...updated, video: { configured: videoProvider.configured() } };
     });

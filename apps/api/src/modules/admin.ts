@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
 import { textAdapters } from "../ai/adapters";
+import { notify, createNotifications, deliver } from "../notify";
 
 const micros = (v: bigint | null | undefined) => Number(v ?? 0n) / 1e6;
 
@@ -304,7 +305,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const p = await prisma.product.findUnique({ where: { id: (req.params as { id: string }).id }, include: { seller: true } });
     if (!p) throw notFound("Product");
     await prisma.product.update({ where: { id: p.id }, data: { status: "REMOVED" } });
-    await prisma.notification.create({ data: { userId: p.seller.userId, type: "moderation.product_removed", title: "A listing was removed", body: `${p.title}: ${reason}` } });
+    await notify({ userId: p.seller.userId, type: "moderation.product_removed", title: "A listing was removed", body: `${p.title}: ${reason}` });
     await audit(prisma, { actorId: admin.id, action: "admin.product.remove", targetType: "product", targetId: p.id, data: { reason }, ip: req.ip });
     return { ok: true };
   });

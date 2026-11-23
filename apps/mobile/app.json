@@ -28,6 +28,12 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "color": "#149ab8"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Take photos of items to create listings.",

@@ -8,6 +8,7 @@ import { parse } from "../lib/validate";
 import { emit } from "../realtime";
 import { broadcastInventory, productInclude } from "./catalog";
 import { createPaymentIntent, verifyStripeSignature } from "../payments";
+import { notify, createNotifications, deliver } from "../notify";
 
 type Line = { variantId: string; quantity: number; unitPriceCents?: number };
 
@@ -116,7 +117,7 @@ export async function markCheckoutPaid(checkoutId: string, providerRef: string, 
   for (const o of orders) {
     emit(`seller:${o.sellerId}`, "order:created", { orderId: o.id, totalCents: o.totalCents, isTest });
     const seller = await prisma.sellerAccount.findUnique({ where: { id: o.sellerId } });
-    if (seller) await prisma.notification.create({ data: { userId: seller.userId, type: "order.new", title: "New order", body: `Order ${o.id.slice(-6)} · $${(o.totalCents / 100).toFixed(2)}${isTest ? " (TEST)" : ""}`, link: `/seller/orders` } });
+    if (seller) await notify({ userId: seller.userId, type: "order.new", title: "New order", body: `Order ${o.id.slice(-6)} · $${(o.totalCents / 100).toFixed(2)}${isTest ? " (TEST)" : ""}`, link: `/seller/orders`, data: { orderId: o.id } });
   }
 }
 
@@ -227,9 +228,8 @@ export async function commerceRoutes(app: FastifyInstance) {
     await prisma.$transaction([
       prisma.shipment.create({ data: { orderId: id, carrier: body.carrier, trackingNumber: body.trackingNumber, provider: "manual", status: "IN_TRANSIT" } }),
       prisma.order.update({ where: { id }, data: { status: "SHIPPED" } }),
-      prisma.notification.create({ data: { userId: o.buyerId, type: "order.shipped", title: "Your order shipped", body: `${body.carrier} ${body.trackingNumber}`, link: `/orders` } }),
     ]);
-    emit(`user:${o.buyerId}`, "notification", { type: "order.shipped", orderId: id });
+    await notify({ userId: o.buyerId, type: "order.shipped", title: "Your order shipped", body: `${body.carrier} ${body.trackingNumber}`, link: `/orders`, data: { orderId: id } });
     return { ok: true };
   });
 

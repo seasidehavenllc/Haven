@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMe } from "@/lib/hooks";
 import { api, clearTokens } from "@/lib/api";
 import { HavenMark } from "./HavenMark";
+import { NotificationBell } from "./NotificationBell";
 
 export function Nav() {
   const { me } = useMe();
@@ -38,6 +39,7 @@ export function Nav() {
         <div className="flex items-center gap-2 text-sm">
           {me ? (
             <>
+              <NotificationBell />
               <Link href="/cart" className="btn-ghost px-3">
                 Cart
               </Link>

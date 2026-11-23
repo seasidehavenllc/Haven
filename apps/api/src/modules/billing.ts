@@ -9,6 +9,7 @@ import { creditBalance, expireAllowance, grantAllowance, lockSeller, creditsUsed
 import { featureAvailability } from "../ai/gateway";
 import { activePaymentProvider, createPaymentIntent } from "../payments";
 import { emit } from "../realtime";
+import { notify, createNotifications, deliver } from "../notify";
 
 const addPeriod = (d: Date, interval: string) => {
   const n = new Date(d);
@@ -58,7 +59,7 @@ export async function renewSubscriptions() {
       } catch {
         await prisma.sellerSubscription.update({ where: { id: sub.id }, data: { status: "PAST_DUE" } });
         const seller = await prisma.sellerAccount.findUniqueOrThrow({ where: { id: sub.sellerId } });
-        await prisma.notification.create({ data: { userId: seller.userId, type: "billing.payment_failed", title: "AI plan payment failed", body: "Update your payment method to keep AI features.", link: "/seller/ai" } });
+        await notify({ userId: seller.userId, type: "billing.payment_failed", title: "AI plan payment failed", body: "Update your payment method to keep AI features.", link: "/seller/ai" });
         continue;
       }
     }

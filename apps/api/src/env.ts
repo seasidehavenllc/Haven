@@ -18,6 +18,9 @@ const Env = z.object({
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
   UPCITEMDB_USER_KEY: z.string().optional(),
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);

@@ -50,6 +50,8 @@ model User {
   followers     Follow[]            @relation("followee")
   wishlist      WishlistItem[]
   notifications Notification[]
+  pushDevices   PushDevice[]
+  notificationPreference NotificationPreference?
   affiliate     Affiliate?
   reportsFiled  Report[]            @relation("reporter")
   auditLogs     AuditLog[]
@@ -846,10 +848,34 @@ model Notification {
   title     String
   body      String?
   link      String?
+  data      Json?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+/** A phone registered for push notifications (Expo push token). */
+model PushDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  platform   String // ios | android
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  push       Boolean  @default(true)
+  email      Boolean  @default(true)
+  /// Notification types the user has turned off entirely, e.g. "stream.live".
+  mutedTypes String[] @default([])
+  updatedAt  DateTime @updatedAt
 }
 
 model Affiliate {

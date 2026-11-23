@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Image, Text, View } from "react-native";
 import { useColors } from "@/components/ui";
+import { Bell } from "@/components/Bell";
 
 const BrandTitle = () => (
   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -14,7 +15,7 @@ const icon = (glyph: string) => ({ color }: { color: any }) => <Text style={{ co
 export default function TabsLayout() {
   const c = useColors();
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: c.brand, tabBarStyle: { backgroundColor: c.card, borderTopColor: c.line }, headerStyle: { backgroundColor: c.paper }, headerTintColor: c.ink, sceneStyle: { backgroundColor: c.paper } }}>
+    <Tabs screenOptions={{ tabBarActiveTintColor: c.brand, tabBarStyle: { backgroundColor: c.card, borderTopColor: c.line }, headerStyle: { backgroundColor: c.paper }, headerTintColor: c.ink, sceneStyle: { backgroundColor: c.paper }, headerRight: () => <Bell /> }}>
       <Tabs.Screen name="index" options={{ title: "Shop", headerTitle: () => <BrandTitle />, tabBarIcon: icon("◎") }} />
       <Tabs.Screen name="live" options={{ title: "Live", tabBarIcon: icon("●") }} />
       <Tabs.Screen name="sell" options={{ title: "Sell", tabBarIcon: icon("＋") }} />

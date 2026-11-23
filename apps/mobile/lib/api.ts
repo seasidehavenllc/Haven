@@ -75,6 +75,8 @@ export const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2)
 /** Revoke the refresh token on the server, then forget both tokens on the device. */
 export async function logout() {
   const t = await read();
+  // Imported lazily to avoid a require cycle (push.ts uses api()).
+  await (await import("./push")).unregisterPush();
   if (t?.refreshToken) await api("/auth/logout", { body: { refreshToken: t.refreshToken } }).catch(() => {});
   await clearTokens();
 }
