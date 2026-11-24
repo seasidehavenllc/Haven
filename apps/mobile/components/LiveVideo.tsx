@@ -4,9 +4,14 @@ import { useEffect, useState, type MutableRefObject } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { api } from "@/lib/api";
 import { Icon, T, friendlyError } from "./ui";
+import { frameGrabEffect, grabLiveFrame } from "@/modules/haven-frame-grab";
 
 /** Lets the studio turn the camera off for a moment (to snap a photo of an item) and back on. */
-export type HostCamera = { setCamera: (on: boolean) => Promise<void> };
+export type HostCamera = {
+  setCamera: (on: boolean) => Promise<void>;
+  /** A photo straight from the live camera (file URL), without stopping the stream. Null when this phone can't. */
+  grab: () => Promise<string | null>;
+};
 
 /**
  * Live video through LiveKit. The API hands out a join token for the show's room: the host's token can
@@ -76,15 +81,32 @@ function HostView({ cameraRef, controlsStyle }: { cameraRef?: MutableRefObject<H
   const room = useRoomContext();
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
   const [front, setFront] = useState(true);
+  const mine = useTracks([Track.Source.Camera]).filter(isTrackReference).find((t) => t.participant.isLocal);
+  const cameraTrack = mine?.publication.track as LocalVideoTrack | undefined;
+  const cameraTrackId = cameraTrack?.mediaStreamTrack?.id;
+
   useEffect(() => {
     if (!cameraRef) return;
     // Turning the camera back on keeps whichever lens the host had chosen.
-    cameraRef.current = { setCamera: async (on) => void (await localParticipant.setCameraEnabled(on, { facingMode: front ? "user" : "environment" })) };
+    cameraRef.current = {
+      setCamera: async (on) => void (await localParticipant.setCameraEnabled(on, { facingMode: front ? "user" : "environment" })),
+      grab: () => (frameGrabEffect && cameraTrackId ? grabLiveFrame() : Promise.resolve(null)),
+    };
     return () => {
       cameraRef.current = null;
     };
-  }, [cameraRef, localParticipant, front]);
-  const mine = useTracks([Track.Source.Camera]).filter(isTrackReference).find((t) => t.participant.isLocal);
+  });
+
+  // Let the frame grabber see the camera's frames (it passes them on untouched). Flipping the lens makes a new
+  // track, so this runs again for each one.
+  useEffect(() => {
+    if (!frameGrabEffect || !cameraTrack) return;
+    try {
+      (cameraTrack.mediaStreamTrack as any)._setVideoEffects?.([frameGrabEffect]);
+    } catch {
+      /* without it, snapping falls back to the phone camera */
+    }
+  }, [cameraTrackId]);
 
   const [flipping, setFlipping] = useState(false);
 
