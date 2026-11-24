@@ -133,6 +133,35 @@ async function main() {
       ],
     });
   }
+  // Free-tier text and vision providers. Each one only runs once its key is in the server's environment,
+  // and AI_PROVIDER=gemini|groq|anthropic pins every text feature to one of them. Costs are 0 because the
+  // free tiers bill nothing; enter paid prices in Admin → AI providers if you move a key to a paid plan.
+  for (const [key, name, envVar] of [
+    ["gemini", "Google Gemini", "GEMINI_API_KEY"],
+    ["groq", "Groq", "GROQ_API_KEY"],
+  ] as const)
+    await prisma.aiProvider.upsert({ where: { key }, update: {}, create: { key, name, adapter: key, credentialEnvVar: envVar, enabled: true } });
+  const freeModels = [
+    // Gemini reads photos, so it covers scan-to-sell as well as chat.
+    { provider: "gemini", modelId: "gemini-3.8-flash", capability: "VISION_PRODUCT_ID", features: ["PRODUCT_SCAN"] },
+    { provider: "gemini", modelId: "gemini-3.5-flash-lite", capability: "LLM_TEXT", features: ["LISTING_GENERATION", "PRICE_SUGGESTION", "SHOPPING_ASSISTANT"] },
+    { provider: "gemini", modelId: "gemini-3.8-flash", capability: "LLM_AGENT", features: ["COHOST_MINUTE", "AI_HOST_MINUTE"] },
+    { provider: "groq", modelId: "meta-llama/llama-4-scout-17b-16e-instruct", capability: "VISION_PRODUCT_ID", features: ["PRODUCT_SCAN"] },
+    { provider: "groq", modelId: "llama-3.3-70b-versatile", capability: "LLM_TEXT", features: ["LISTING_GENERATION", "PRICE_SUGGESTION", "SHOPPING_ASSISTANT"] },
+    { provider: "groq", modelId: "llama-3.3-70b-versatile", capability: "LLM_AGENT", features: ["COHOST_MINUTE", "AI_HOST_MINUTE"] },
+  ];
+  for (const f of freeModels) {
+    const provider = await prisma.aiProvider.findUniqueOrThrow({ where: { key: f.provider } });
+    const row = await prisma.aiProviderModel.upsert({
+      where: { providerId_modelId_capability: { providerId: provider.id, modelId: f.modelId, capability: f.capability } },
+      update: {},
+      create: { providerId: provider.id, modelId: f.modelId, capability: f.capability, tier: "economy" },
+    });
+    for (const feature of f.features)
+      if (!(await prisma.aiRoutingRule.findFirst({ where: { modelRefId: row.id, feature } })))
+        await prisma.aiRoutingRule.create({ data: { feature, modelRefId: row.id, priority: f.provider === "gemini" ? 50 : 60, minPlanTier: 0 } });
+  }
+
 
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;

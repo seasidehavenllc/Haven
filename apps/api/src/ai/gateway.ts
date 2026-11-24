@@ -138,18 +138,25 @@ async function candidates<A>(feature: AiFeature, planTier: number, registry: Rec
     where: { id: { in: rules.map((r) => r.modelRefId) }, enabled: true, provider: { enabled: true } },
     include: { provider: true },
   });
+  // AI_PROVIDER pins text and vision features to one provider, so switching is one env change.
+  const pinned = (registry as unknown) === textAdapters ? process.env.AI_PROVIDER || undefined : undefined;
   const out: Candidate<A>[] = [];
+  const seen = new Set<string>();
   for (const r of rules) {
     const m = models.find((x) => x.id === r.modelRefId);
     if (!m) continue;
+    if (pinned && m.provider.adapter !== pinned) continue;
     const adapter = registry[m.provider.adapter];
     const apiKey = process.env[m.provider.credentialEnvVar];
     if (!adapter || !apiKey) continue;
+    const modelId = pinned && process.env.AI_MODEL ? process.env.AI_MODEL : m.modelId;
+    if (seen.has(`${m.provider.key}:${modelId}`)) continue;
+    seen.add(`${m.provider.key}:${modelId}`);
     out.push({
       providerKey: m.provider.key,
       adapter,
       apiKey,
-      modelId: m.modelId,
+      modelId,
       inCost: m.inputCostMicrosPerMTok,
       outCost: m.outputCostMicrosPerMTok,
       unitCost: m.unitCostMicros,
@@ -202,7 +209,7 @@ export async function runAi<A, T>(
   const cands = await candidates(ctx.feature, auth.planTier, registry);
   if (cands.length === 0) {
     await recordDenied(ctx, "no_provider", auth.planKey);
-    throw notConfigured(`AI provider for ${ctx.feature}`, ["ANTHROPIC_API_KEY or another provider key", "enable a provider + routing rule in Admin → AI providers"]);
+    throw notConfigured(`AI provider for ${ctx.feature}`, [process.env.AI_PROVIDER ? `the API key for AI_PROVIDER=${process.env.AI_PROVIDER}` : "GEMINI_API_KEY, GROQ_API_KEY or ANTHROPIC_API_KEY", "enable a provider + routing rule in Admin → AI providers"]);
   }
 
   const usage = await prisma.aiUsageRecord.create({

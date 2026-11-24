@@ -27,6 +27,10 @@ const Env = z.object({
   LIVEKIT_API_SECRET: z.string().optional(),
   UPCITEMDB_USER_KEY: z.string().optional(),
   EXPO_ACCESS_TOKEN: z.string().optional(),
+  /** Pins every text/vision AI feature to one provider. Unset = follow Admin → AI providers routing. */
+  AI_PROVIDER: z.enum(["anthropic", "gemini", "groq", "openai"]).optional().or(z.literal("").transform(() => undefined)),
+  /** Optional: use this one model id for the pinned provider instead of the seeded defaults. */
+  AI_MODEL: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 });

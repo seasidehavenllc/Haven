@@ -49,6 +49,12 @@ services:
         sync: false
       - key: CDN_BASE_URL
         sync: false
-      # Add the rest when you have them (all optional): ANTHROPIC_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-      # LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, RESEND_API_KEY, EMAIL_FROM, SHIPPO_API_KEY,
-      # SHIPPING_WEBHOOK_TOKEN, APPLE_CLIENT_ID, GOOGLE_OAUTH_CLIENT_ID, ELEVENLABS_API_KEY, DEEPGRAM_API_KEY.
+      # AI for scan-to-sell, the co-host and AI salespeople. Change AI_PROVIDER to anthropic (and add
+      # ANTHROPIC_API_KEY) to switch; no code change. groq also works for chat but is weaker on photos.
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      # Add the rest when you have them (all optional): ANTHROPIC_API_KEY, GROQ_API_KEY, AI_MODEL, STRIPE_SECRET_KEY,
+      # STRIPE_WEBHOOK_SECRET, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, RESEND_API_KEY, EMAIL_FROM,
+      # SHIPPO_API_KEY, SHIPPING_WEBHOOK_TOKEN, ELEVENLABS_API_KEY, DEEPGRAM_API_KEY. docs/DEPLOY.md has the full table.
