@@ -3,6 +3,8 @@ import { useState } from "react";
 import { api, newKey } from "@/lib/api";
 import { useApi, useRealtime } from "@/lib/hooks";
 import { ErrorNote, Loading, Money } from "@/components/ui";
+import { CardPayment } from "@/components/CardPayment";
+import { formatMoney } from "@haven/shared";
 
 const FEATURE_LABEL: Record<string, string> = {
   PRODUCT_SCAN: "Photo scan",
@@ -22,6 +24,7 @@ export default function SellerAi() {
   const caps = useApi<any>("/capabilities");
   const [err, setErr] = useState<any>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [paying, setPaying] = useState<{ clientSecret: string; pack: any } | null>(null);
   const [limits, setLimits] = useState<{ daily: string; monthly: string } | null>(null);
   useRealtime(null, { "credits:changed": () => b.reload() });
   if (b.loading || plans.loading) return <Loading />;
@@ -120,7 +123,8 @@ export default function SellerAi() {
                   setErr(null);
                   try {
                     const r = await api("/seller/ai/credits/purchase", { body: { packKey: p.key, idempotencyKey: newKey() } });
-                    setNote(r.requiresPayment ? "Complete payment to add credits." : `Added ${p.credits.toLocaleString()} credits`);
+                    if (r.requiresPayment && r.clientSecret) setPaying({ clientSecret: r.clientSecret, pack: p });
+                    else setNote(`Added ${p.credits.toLocaleString()} credits`);
                     b.reload();
                   } catch (e) {
                     setErr(e);
@@ -134,6 +138,32 @@ export default function SellerAi() {
               </button>
             ))}
           </div>
+          {paying && (
+            <div className="mt-3 space-y-2 rounded-xl border border-line p-3">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span>
+                  {paying.pack.credits.toLocaleString()} credits for <Money cents={paying.pack.priceCents} />
+                </span>
+                <button className="text-xs text-muted hover:text-ink" onClick={() => setPaying(null)}>
+                  Cancel
+                </button>
+              </div>
+              {caps.data?.payments.publishableKey ? (
+                <CardPayment
+                  publishableKey={caps.data.payments.publishableKey}
+                  clientSecret={paying.clientSecret}
+                  label={`Pay ${formatMoney(paying.pack.priceCents)}`}
+                  onPaid={() => {
+                    setPaying(null);
+                    setNote("Payment received. Your credits appear in a few seconds.");
+                    setTimeout(b.reload, 4000);
+                  }}
+                />
+              ) : (
+                <p className="text-xs text-warn">Card payments aren't switched on yet (the server needs STRIPE_PUBLISHABLE_KEY).</p>
+              )}
+            </div>
+          )}
           <h3 className="mb-1 mt-4 text-sm font-semibold">What things cost</h3>
           <ul className="grid grid-cols-2 gap-1 text-xs text-muted">
             {plans.data.featurePrices.map((f: any) => (

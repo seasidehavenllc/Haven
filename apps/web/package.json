@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@haven/shared": "workspace:*",
+    "@stripe/react-stripe-js": "^7.1.0",
+    "@stripe/stripe-js": "^10.3.0",
     "next": "15.5.29",
     "react": "19.1.10",
     "react-dom": "19.1.10",

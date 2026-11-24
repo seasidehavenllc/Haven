@@ -4,7 +4,9 @@ import { useState } from "react";
 import { api, newKey } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Empty, ErrorNote, Loading, Money } from "@/components/ui";
+import { formatMoney } from "@haven/shared";
 import { AddressForm, emptyAddress } from "@/components/AddressForm";
+import { CardPayment } from "@/components/CardPayment";
 
 export default function CartPage() {
   const { data: cart, loading, error, reload: reloadCart } = useApi<any>("/cart");
@@ -15,21 +17,35 @@ export default function CartPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<any>(null);
   const [done, setDone] = useState<any>(null);
+  const [paid, setPaid] = useState(false);
   const [key] = useState(newKey);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
-  if (done)
+  if (done) {
+    const pk = caps.data?.payments.publishableKey as string | null | undefined;
+    const due = done.orders.reduce((s: number, o: any) => s + o.totalCents, 0);
+    const needsCard = !!done.clientSecret && !paid;
     return (
-      <div className="mx-auto max-w-lg space-y-3 text-center">
-        <h1 className="font-display text-3xl font-bold">Order placed</h1>
+      <div className="mx-auto max-w-lg space-y-4 text-center">
+        <h1 className="font-display text-3xl font-bold">{needsCard ? "Pay for your order" : paid ? "Payment received" : "Order placed"}</h1>
         {done.orders[0]?.isTest && <p className="rounded-xl bg-warn/10 p-2 text-sm text-warn">Test payment: no real money moved. Stripe isn't connected on this server.</p>}
-        {done.clientSecret && <p className="text-sm">Complete payment with Stripe to confirm your order.</p>}
-        <Link className="btn-primary" href="/orders">
-          View orders
-        </Link>
+        {needsCard && pk && caps.data?.payments.liveMode === false && <p className="rounded-xl bg-warn/10 p-2 text-sm text-warn">Stripe test mode: use card 4242 4242 4242 4242, any future date and any CVC. No real money moves.</p>}
+        {needsCard && pk && (
+          <div className="panel p-4">
+            <CardPayment publishableKey={pk} clientSecret={done.clientSecret} label={`Pay ${formatMoney(due)}`} onPaid={() => setPaid(true)} />
+          </div>
+        )}
+        {needsCard && !pk && <p className="text-sm text-warn">Card payments aren't switched on yet (the server needs STRIPE_PUBLISHABLE_KEY). Your items are held for a short time.</p>}
+        {paid && <p className="text-sm text-muted">Stripe is confirming the payment. Your order shows as paid in a few seconds.</p>}
+        {!needsCard && (
+          <Link className="btn-primary" href="/orders">
+            View orders
+          </Link>
+        )}
       </div>
     );
+  }
   const items = cart?.items ?? [];
   return (
     <div className="grid gap-8 md:grid-cols-[1fr_380px]">

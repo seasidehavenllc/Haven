@@ -21,7 +21,7 @@ import { billingRoutes } from "./modules/billing";
 import { adminRoutes } from "./modules/admin";
 import { assistantRoutes } from "./modules/assistant";
 import { featureAvailability } from "./ai/gateway";
-import { activePaymentProvider } from "./payments";
+import { activePaymentProvider, stripePublishableKey } from "./payments";
 import { videoProvider } from "./video";
 import { shippingRoutes } from "./modules/shipping";
 import { activeShippingProvider } from "./shipping";
@@ -77,7 +77,7 @@ export async function buildApp() {
 
   /** What is actually configured right now. Web/mobile use this to avoid showing broken features. */
   app.get("/capabilities", async () => ({
-    payments: { provider: activePaymentProvider(), testMode: activePaymentProvider() === "test" || (!process.env.STRIPE_SECRET_KEY && testPaymentsAllowed) },
+    payments: { provider: activePaymentProvider(), testMode: activePaymentProvider() === "test" || (!process.env.STRIPE_SECRET_KEY && testPaymentsAllowed), publishableKey: stripePublishableKey(), liveMode: !!process.env.STRIPE_SECRET_KEY?.includes("_live_") },
     video: { provider: videoProvider.id, configured: videoProvider.configured() },
     ai: await featureAvailability(),
     shipping: { configured: !!activeShippingProvider(), provider: activeShippingProvider()?.id ?? "manual", tracking: !!process.env.SHIPPING_WEBHOOK_TOKEN },
