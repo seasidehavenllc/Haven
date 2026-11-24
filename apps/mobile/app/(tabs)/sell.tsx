@@ -13,10 +13,9 @@ export default function Sell() {
   if (!ready) return <Loading />;
   if (!me)
     return (
-      <View style={s.screen}>
-        <T size={24} weight="800">Sell on Haven</T>
-        <T>Log in or create an account first, then open your store here.</T>
-        <Btn title="Log in" onPress={() => router.push("/account")} />
+      <View style={[s.screen, { flex: 1, justifyContent: "center" }]}>
+        <Empty title="Sell on Haven">Sign in or create an account, then open your store here. Snap a photo and AI drafts the listing for you.</Empty>
+        <Btn title="Sign in to start selling" onPress={() => router.push("/login")} />
       </View>
     );
   return me.seller ? <SellerHome /> : <OpenStore />;
@@ -113,8 +112,8 @@ function SellerHome() {
       </View>
       <T size={12} color={c.muted}>{mode === "single" ? "Several photos of the same item: front, back, labels, wear." : "One photo per item, up to 25 at once."}</T>
       <View style={{ flexDirection: "row", gap: 8 }}>
-        <Btn style={{ flex: 1 }} kind="ghost" title="📷 Take photo" onPress={() => pick(true)} />
-        <Btn style={{ flex: 1 }} kind="ghost" title="Choose photos" onPress={() => pick(false)} />
+        <Btn style={{ flex: 1 }} kind="ghost" icon="camera-outline" title="Take photo" onPress={() => pick(true)} />
+        <Btn style={{ flex: 1 }} kind="ghost" icon="images-outline" title="Choose photos" onPress={() => pick(false)} />
       </View>
       {!!photos.length && (
         <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>

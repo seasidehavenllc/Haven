@@ -4,7 +4,7 @@ import { FlatList, Image, Pressable, View, useWindowDimensions } from "react-nat
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { block, report } from "@/lib/safety";
-import { Btn, Empty, ErrorNote, Loading, T, s, useColors } from "@/components/ui";
+import { Btn, Empty, ErrorNote, Icon, Loading, T, s, useColors } from "@/components/ui";
 
 const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 
@@ -23,7 +23,7 @@ export default function Profile() {
   const tile = (width - 32 - 8) / 3;
 
   async function toggleFollow() {
-    if (!me) return router.push("/account");
+    if (!me) return router.push("/login");
     const next = !p.followedByMe;
     setErr(null);
     profile.setData((d: any) => ({ ...d, followedByMe: next, followerCount: d.followerCount + (next ? 1 : -1) }));
@@ -94,7 +94,10 @@ export default function Profile() {
         renderItem={({ item: v }) => (
           <Pressable onPress={() => router.push(`/video/${v.id}`)} style={{ width: tile, height: tile * 1.6, borderRadius: 8, overflow: "hidden", backgroundColor: c.line }}>
             {v.posterUrl && <Image source={{ uri: v.posterUrl }} style={{ width: "100%", height: "100%" }} />}
-            <T size={11} weight="700" color="#fff" style={{ position: "absolute", left: 6, bottom: 4 }}>▶ {compact(v.viewCount)}</T>
+            <View style={{ position: "absolute", left: 6, bottom: 4, flexDirection: "row", alignItems: "center", gap: 2 }}>
+              <Icon name="play" size={11} color="#fff" />
+              <T size={11} weight="700" color="#fff">{compact(v.viewCount)}</T>
+            </View>
           </Pressable>
         )}
       />

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { api, API_URL } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
-import { Money, minPrice } from "./ui";
+import { Icon, Money, minPrice } from "./ui";
 import { block, choose, report } from "@/lib/safety";
 
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n));
@@ -42,7 +42,7 @@ export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }
   }, [active]);
 
   async function like() {
-    if (!me) return router.push("/account");
+    if (!me) return router.push("/login");
     const next = !liked;
     setLiked(next);
     setLikes((n: number) => n + (next ? 1 : -1));
@@ -65,23 +65,27 @@ export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }
         }}
       >
         <VideoView player={player} style={{ flex: 1 }} contentFit="cover" nativeControls={false} />
-        {paused && <Text style={{ position: "absolute", alignSelf: "center", top: height / 2 - 30, fontSize: 56, color: "rgba(255,255,255,0.8)" }}>▶</Text>}
+        {paused && (
+          <View pointerEvents="none" style={{ position: "absolute", alignSelf: "center", top: height / 2 - 36 }}>
+            <Icon name="play" size={72} color="rgba(255,255,255,0.85)" />
+          </View>
+        )}
       </Pressable>
-      <Pressable onPress={onToggleMute} style={{ position: "absolute", right: 12, top: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-        <Text style={{ ...W, fontSize: 12 }}>{muted ? "🔇 Sound off" : "🔊"}</Text>
+      <Pressable onPress={onToggleMute} style={{ position: "absolute", right: 12, top: 12, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999, padding: 8 }} accessibilityLabel={muted ? "Turn sound on" : "Turn sound off"}>
+        <Icon name={muted ? "volume-mute" : "volume-high"} size={18} color="#fff" />
       </Pressable>
 
       <View style={{ position: "absolute", right: 10, bottom: 150, alignItems: "center", gap: 18 }}>
         <Pressable onPress={like} accessibilityLabel="Like" style={{ alignItems: "center" }}>
-          <Text style={{ fontSize: 30, color: liked ? "#ff4d6d" : "#fff" }}>{liked ? "♥" : "♡"}</Text>
+          <Icon name={liked ? "heart" : "heart-outline"} size={32} color={liked ? "#ff4d6d" : "#fff"} />
           <Text style={{ ...W, fontSize: 12 }}>{compact(likes)}</Text>
         </Pressable>
         <Pressable onPress={onComments} accessibilityLabel="Comments" style={{ alignItems: "center" }}>
-          <Text style={{ fontSize: 24 }}>💬</Text>
+          <Icon name="chatbubble-ellipses-outline" size={29} color="#fff" />
           <Text style={{ ...W, fontSize: 12 }}>{compact(v.commentCount)}</Text>
         </Pressable>
         <Pressable onPress={() => Share.share({ message: `${v.caption ? v.caption + " " : ""}${API_URL.replace(/:\d+$/, "")}/videos/${v.id}` }).catch(() => {})} accessibilityLabel="Share" style={{ alignItems: "center" }}>
-          <Text style={{ ...W, fontSize: 24 }}>↗</Text>
+          <Icon name="arrow-redo-outline" size={29} color="#fff" />
           <Text style={{ ...W, fontSize: 12 }}>Share</Text>
         </Pressable>
         {me && me.user.id !== v.creatorId && (
@@ -95,7 +99,7 @@ export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }
             }}
             style={{ alignItems: "center" }}
           >
-            <Text style={{ ...W, fontSize: 22 }}>•••</Text>
+            <Icon name="ellipsis-horizontal" size={26} color="#fff" />
           </Pressable>
         )}
         <Text style={{ ...W, fontSize: 11, opacity: 0.8 }}>{compact(v.viewCount)} {v.viewCount === 1 ? "view" : "views"}</Text>

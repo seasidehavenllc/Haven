@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
-import { Btn, ErrorNote, Field, T, useColors } from "./ui";
+import { Btn, ErrorNote, Field, Icon, T, useColors } from "./ui";
 import { block, choose, report } from "@/lib/safety";
 
 export function VideoComments({ video, onClose }: { video: { id: string; creatorId: string } | null; onClose: () => void }) {
@@ -25,8 +25,8 @@ function Sheet({ video, onClose }: { video: { id: string; creatorId: string }; o
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ height: "62%", backgroundColor: c.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 14, gap: 10 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <T weight="700">Comments</T>
-        <Pressable onPress={onClose} hitSlop={10}>
-          <T color={c.muted}>✕</T>
+        <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close comments">
+          <Icon name="close" size={22} color={c.muted} />
         </Pressable>
       </View>
       <FlatList

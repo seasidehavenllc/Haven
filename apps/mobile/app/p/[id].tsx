@@ -69,7 +69,7 @@ export default function ProductScreen() {
           disabled={!v || v.quantity === 0}
           busy={busy}
           onPress={async () => {
-            if (!me) return router.push("/account");
+            if (!me) return router.push("/login");
             setBusy(true);
             setErr(null);
             try {

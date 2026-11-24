@@ -1,8 +1,8 @@
 import { Link, router } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, useWindowDimensions, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, TextInput, useWindowDimensions, View } from "react-native";
 import { useApi } from "@/lib/hooks";
-import { Btn, Chip, Empty, ErrorNote, Field, ModeBadge, ProductTile, T, s, useColors } from "@/components/ui";
+import { Chip, Empty, ErrorNote, Icon, ModeBadge, ProductTile, T, s, useColors } from "@/components/ui";
 
 export default function Shop() {
   const c = useColors();
@@ -21,14 +21,26 @@ export default function Shop() {
       numColumns={2}
       columnWrapperStyle={{ gap: 12 }}
       contentContainerStyle={[s.screen, { backgroundColor: c.paper }]}
-      refreshControl={<RefreshControl refreshing={products.loading} onRefresh={() => (products.reload(), streams.reload())} />}
+      refreshControl={<RefreshControl tintColor={c.muted} refreshing={products.loading} onRefresh={() => (products.reload(), streams.reload())} />}
       ListHeaderComponent={
         <View style={{ gap: 14 }}>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <View style={{ flex: 1 }}>
-              <Field placeholder="Search products" value={q} onChangeText={setQ} returnKeyType="search" onSubmitEditing={() => setQuery(q.trim())} />
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 46, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: c.line, backgroundColor: c.card }}>
+              <Icon name="search" size={18} color={c.muted} />
+              <TextInput
+                placeholder="Search products"
+                placeholderTextColor={c.muted}
+                value={q}
+                onChangeText={setQ}
+                returnKeyType="search"
+                onSubmitEditing={() => setQuery(q.trim())}
+                clearButtonMode="while-editing"
+                style={{ flex: 1, color: c.ink, fontSize: 16, paddingVertical: 10 }}
+              />
             </View>
-            <Btn kind="ghost" title="Cart" onPress={() => router.push("/cart")} />
+            <Pressable onPress={() => router.push("/cart")} accessibilityLabel="Cart" style={{ width: 46, height: 46, borderRadius: 14, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, alignItems: "center", justifyContent: "center" }}>
+              <Icon name="bag-handle-outline" size={22} color={c.ink} />
+            </Pressable>
           </View>
           {!!live.length && (
             <View style={{ gap: 8 }}>

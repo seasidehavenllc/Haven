@@ -1,4 +1,5 @@
 import { formatMoney } from "@haven/shared";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Link } from "expo-router";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View, useColorScheme, type TextInputProps, type ViewStyle } from "react-native";
@@ -8,16 +9,45 @@ const haven = { ink: "#f4f7fa", paper: "#03060a", card: "#0b131c", muted: "#9aa9
 export const palette = { light: haven, dark: haven };
 export const useColors = () => palette[useColorScheme() === "dark" ? "dark" : "light"];
 
-export function T({ children, style, size = 15, weight, color, lines }: { children: ReactNode; style?: any; size?: number; weight?: "400" | "500" | "600" | "700" | "800"; color?: string; lines?: number }) {
+export type IconName = keyof typeof Ionicons.glyphMap;
+/** One icon set (Ionicons) everywhere, so nothing falls back to emoji. */
+export const Icon = ({ name, size = 22, color }: { name: IconName; size?: number; color?: any }) => <Ionicons name={name} size={size} color={color ?? palette.dark.ink} />;
+
+/** A person's photo, or their initials on the brand colour when they have none. */
+export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name?: string | null; size?: number }) {
+  const c = useColors();
+  const initials = (name ?? "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+  if (uri) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.line }} />;
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.brand, alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ color: "#fff", fontWeight: "700", fontSize: size * 0.4 }}>{initials}</Text>
+    </View>
+  );
+}
+
+/** A tappable settings-style row with an icon and a chevron. */
+export function Row({ icon, label, onPress, tone }: { icon: IconName; label: string; onPress: () => void; tone?: "danger" }) {
+  const c = useColors();
+  const color = tone === "danger" ? c.live : c.ink;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 14, opacity: pressed ? 0.6 : 1 }]}>
+      <Icon name={icon} size={20} color={tone === "danger" ? c.live : c.muted} />
+      <T style={{ flex: 1 }} color={color}>{label}</T>
+      <Icon name="chevron-forward" size={18} color={c.muted} />
+    </Pressable>
+  );
+}
+
+export function T({ children, style, size = 15, weight, color, lines, onPress }: { children: ReactNode; style?: any; size?: number; weight?: "400" | "500" | "600" | "700" | "800"; color?: string; lines?: number; onPress?: () => void }) {
   const c = useColors();
   return (
-    <Text numberOfLines={lines} style={[{ color: color ?? c.ink, fontSize: size, fontWeight: weight }, style]}>
+    <Text numberOfLines={lines} onPress={onPress} suppressHighlighting style={[{ color: color ?? c.ink, fontSize: size, fontWeight: weight }, style]}>
       {children}
     </Text>
   );
 }
 
-export function Btn({ title, onPress, kind = "primary", disabled, busy, style }: { title: string; onPress?: () => void; kind?: "primary" | "ghost" | "ai" | "danger"; disabled?: boolean; busy?: boolean; style?: ViewStyle }) {
+export function Btn({ title, onPress, kind = "primary", disabled, busy, style, icon }: { title: string; onPress?: () => void; kind?: "primary" | "ghost" | "ai" | "danger"; disabled?: boolean; busy?: boolean; style?: ViewStyle; icon?: IconName }) {
   const c = useColors();
   const bg = kind === "primary" ? c.brand : kind === "ai" ? c.ai : kind === "danger" ? c.live : "transparent";
   return (
@@ -27,7 +57,14 @@ export function Btn({ title, onPress, kind = "primary", disabled, busy, style }:
       disabled={disabled || busy}
       style={({ pressed }) => [s.btn, { backgroundColor: bg, borderColor: kind === "ghost" ? c.line : bg, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, style]}
     >
-      {busy ? <ActivityIndicator color={kind === "ghost" ? c.ink : "#fff"} /> : <T weight="600" color={kind === "ghost" ? c.ink : "#fff"}>{title}</T>}
+      {busy ? (
+        <ActivityIndicator color={kind === "ghost" ? c.ink : "#fff"} />
+      ) : (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {icon && <Icon name={icon} size={18} color={kind === "ghost" ? c.ink : "#fff"} />}
+          <T weight="600" color={kind === "ghost" ? c.ink : "#fff"}>{title}</T>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -44,13 +81,19 @@ export function Field(props: TextInputProps & { label?: string }) {
 
 export const Money = ({ cents, size, weight = "700" }: { cents: number | null | undefined; size?: number; weight?: any }) => <T size={size} weight={weight}>{cents == null ? "—" : formatMoney(cents)}</T>;
 
+/** Network failures read as "Failed to fetch" or "Network request failed"; say what that means instead. */
+export const friendlyError = (error: any) => {
+  const m: string = error?.message ?? String(error);
+  return /failed to fetch|network request failed|load failed/i.test(m) ? "Can't reach Haven right now. Check your connection, then pull down to try again." : m;
+};
+
 export function ErrorNote({ error }: { error: any }) {
   const c = useColors();
   if (!error) return null;
   const env: string[] | undefined = error.details?.requiredEnv;
   return (
     <View style={[s.note, { backgroundColor: c.live + "18" }]}>
-      <T size={13} color={c.live}>{error.message ?? String(error)}</T>
+      <T size={13} color={c.live}>{friendlyError(error)}</T>
       {env && <T size={12} color={c.muted}>Needs on the server: {env.join(", ")}</T>}
     </View>
   );
@@ -77,8 +120,8 @@ export function Loading() {
 export const Empty = ({ title, children }: { title: string; children?: ReactNode }) => {
   const c = useColors();
   return (
-    <View style={[s.empty, { borderColor: c.line }]}>
-      <T weight="600">{title}</T>
+    <View style={[s.empty, { borderColor: c.line, backgroundColor: c.card }]}>
+      <T weight="700" size={16}>{title}</T>
       {children && <T size={13} color={c.muted} style={{ textAlign: "center" }}>{children}</T>}
     </View>
   );
@@ -126,7 +169,7 @@ export const s = StyleSheet.create({
   btn: { minHeight: 46, paddingHorizontal: 18, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   input: { minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   note: { padding: 12, borderRadius: 12, gap: 4 },
-  empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: 16, padding: 24, alignItems: "center", gap: 6 },
+  empty: { borderWidth: 1, borderRadius: 18, paddingVertical: 32, paddingHorizontal: 24, alignItems: "center", gap: 8 },
   thumb: { borderRadius: 14, overflow: "hidden" },
   chip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, alignSelf: "flex-start" },
   card: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },

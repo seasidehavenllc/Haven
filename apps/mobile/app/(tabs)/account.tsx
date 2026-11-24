@@ -2,10 +2,9 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { api, logout, saveTokens } from "@/lib/api";
+import { api, logout } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
-import { SocialSignIn } from "@/components/SocialSignIn";
-import { Btn, Chip, Empty, ErrorNote, Field, Loading, Money, T, s, useColors } from "@/components/ui";
+import { Avatar, Btn, Chip, Empty, ErrorNote, Icon, Loading, Money, Row, T, s, useColors } from "@/components/ui";
 
 const SITE = "https://sales.seasidehavenllc.com";
 
@@ -15,21 +14,24 @@ function BlockedPeople() {
   const [open, setOpen] = useState(false);
   const list = useApi<any[]>(open ? "/me/blocks" : null);
   return (
-    <View style={{ gap: 6 }}>
-      <Btn kind="ghost" title={open ? "Hide blocked people" : "Blocked people"} onPress={() => setOpen(!open)} />
-      {open &&
-        (list.loading ? (
-          <Loading />
-        ) : !list.data?.length ? (
-          <T size={13} color={c.muted}>You haven't blocked anyone.</T>
-        ) : (
-          list.data.map((b) => (
-            <View key={b.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <T>@{b.handle}</T>
-              <Btn kind="ghost" title="Unblock" onPress={async () => (await api(`/users/${b.handle}/block`, { method: "DELETE" }), await Promise.all([list.reload(), reload()]))} />
-            </View>
-          ))
-        ))}
+    <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, overflow: "hidden" }}>
+      <Row icon="ban-outline" label={open ? "Hide blocked people" : "Blocked people"} onPress={() => setOpen(!open)} />
+      {open && (
+        <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
+          {list.loading ? (
+            <Loading />
+          ) : !list.data?.length ? (
+            <T size={13} color={c.muted}>You haven't blocked anyone.</T>
+          ) : (
+            list.data.map((b) => (
+              <View key={b.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <T>@{b.handle}</T>
+                <Btn kind="ghost" title="Unblock" onPress={async () => (await api(`/users/${b.handle}/block`, { method: "DELETE" }), await Promise.all([list.reload(), reload()]))} />
+              </View>
+            ))
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -37,68 +39,37 @@ function BlockedPeople() {
 export default function Account() {
   const { me, ready } = useMe();
   if (!ready) return <Loading />;
-  return me ? <Profile /> : <AuthForm />;
-}
-
-function AuthForm() {
-  const c = useColors();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [f, setF] = useState({ email: "", password: "", displayName: "", handle: "" });
-  const [err, setErr] = useState<any>(null);
-  const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: k === "handle" ? v.toLowerCase().replace(/[^a-z0-9_]/g, "") : v });
-  return (
-    <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled">
-      <T size={26} weight="800">{mode === "login" ? "Welcome back" : "Create your account"}</T>
-      <SocialSignIn />
-      {mode === "register" && (
-        <>
-          <Field label="Name" value={f.displayName} onChangeText={set("displayName")} />
-          <Field label="Handle" value={f.handle} onChangeText={set("handle")} autoCapitalize="none" />
-        </>
-      )}
-      <Field label="Email" value={f.email} onChangeText={set("email")} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-      <Field label="Password" value={f.password} onChangeText={set("password")} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} />
-      {mode === "register" && <T size={12} color={c.muted}>At least 10 characters.</T>}
-      {mode === "register" && (
-        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/terms`)}>
-          <T size={12} color={c.muted}>
-            By signing up you agree to Haven's <T size={12} color={c.brand}>Terms</T>. Haven has zero tolerance for objectionable content or abusive people.
-          </T>
-        </Pressable>
-      )}
-      <ErrorNote error={err} />
-      <Btn
-        title={mode === "login" ? "Log in" : "Sign up"}
-        busy={busy}
-        onPress={async () => {
-          setBusy(true);
-          setErr(null);
-          try {
-            const r = await api(`/auth/${mode}`, { body: mode === "login" ? { email: f.email, password: f.password } : f });
-            await saveTokens(r);
-          } catch (e) {
-            setErr(e);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      <Btn kind="ghost" title={mode === "login" ? "New here? Create an account" : "Have an account? Log in"} onPress={() => setMode(mode === "login" ? "register" : "login")} />
-    </ScrollView>
-  );
+  if (!me)
+    return (
+      <View style={[s.screen, { flex: 1, justifyContent: "center" }]}>
+        <Empty title="You're browsing as a guest">Sign in to see your orders, follow sellers and check out.</Empty>
+        <Btn title="Sign in or create account" onPress={() => router.push("/login")} />
+      </View>
+    );
+  return <Profile />;
 }
 
 function Profile() {
   const c = useColors();
   const { me } = useMe();
   const orders = useApi<any[]>("/orders");
+  const u = me!.user;
   return (
     <ScrollView contentContainerStyle={s.screen}>
-      <T size={24} weight="800">{me!.user.displayName}</T>
-      <T color={c.muted}>@{me!.user.handle}{me!.seller ? ` · ${me!.seller.businessName} (${me!.seller.plan?.name ?? "no"} plan)` : ""}</T>
+      <View style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", gap: 14 }]}>
+        <Avatar uri={u.avatarUrl} name={u.displayName} size={60} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <T size={20} weight="800" lines={1}>{u.displayName}</T>
+          <T color={c.muted} lines={1}>@{u.handle}</T>
+          {me!.seller && <T size={13} color={c.brandLight} lines={1}>{me!.seller.businessName}{me!.seller.plan ? ` · ${me!.seller.plan.name} plan` : ""}</T>}
+        </View>
+        <Pressable onPress={() => router.push(`/u/${u.handle}`)} hitSlop={8} accessibilityLabel="View your public profile">
+          <Icon name="open-outline" size={20} color={c.muted} />
+        </Pressable>
+      </View>
+
       <T size={18} weight="700">Orders</T>
-      {orders.loading ? <Loading /> : orders.error ? <ErrorNote error={orders.error} /> : !orders.data?.length ? <Empty title="No orders yet" /> : orders.data.map((o) => (
+      {orders.loading ? <Loading /> : orders.error ? <ErrorNote error={orders.error} /> : !orders.data?.length ? <Empty title="No orders yet">Things you buy show up here with tracking.</Empty> : orders.data.map((o) => (
         <View key={o.id} style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <T weight="600">{o.seller.businessName}</T>
@@ -120,17 +91,28 @@ function Profile() {
           </View>
         </View>
       ))}
-      <Btn kind="ghost" title="Log out" onPress={logout} />
-      <BlockedPeople />
-      <View style={{ flexDirection: "row", gap: 16, justifyContent: "center" }}>
-        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/privacy`)} hitSlop={8}>
-          <T size={13} color={c.muted}>Privacy policy</T>
-        </Pressable>
-        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/terms`)} hitSlop={8}>
-          <T size={13} color={c.muted}>Terms</T>
-        </Pressable>
+
+      <T size={18} weight="700">Settings</T>
+      <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, overflow: "hidden" }}>
+        <Row icon="notifications-outline" label="Notifications" onPress={() => router.push("/notifications")} />
+        <Divider />
+        <Row icon="cart-outline" label="Cart" onPress={() => router.push("/cart")} />
+        <Divider />
+        <Row icon="shield-checkmark-outline" label="Privacy policy" onPress={() => WebBrowser.openBrowserAsync(`${SITE}/privacy`)} />
+        <Divider />
+        <Row icon="document-text-outline" label="Terms" onPress={() => WebBrowser.openBrowserAsync(`${SITE}/terms`)} />
       </View>
-      <Btn kind="ghost" title="Delete account" onPress={() => router.push("/delete-account")} />
+      <BlockedPeople />
+      <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, overflow: "hidden" }}>
+        <Row icon="log-out-outline" label="Log out" onPress={logout} />
+        <Divider />
+        <Row icon="trash-outline" label="Delete account" tone="danger" onPress={() => router.push("/delete-account")} />
+      </View>
     </ScrollView>
   );
+}
+
+function Divider() {
+  const c = useColors();
+  return <View style={{ height: 1, backgroundColor: c.line, marginLeft: 46 }} />;
 }

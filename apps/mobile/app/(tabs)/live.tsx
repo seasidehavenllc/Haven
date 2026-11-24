@@ -15,7 +15,7 @@ export default function Live() {
       data={data ?? []}
       keyExtractor={(x) => x.id}
       contentContainerStyle={s.screen}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} />}
+      refreshControl={<RefreshControl tintColor={c.muted} refreshing={loading} onRefresh={reload} />}
       ListHeaderComponent={
         <View style={{ gap: 10 }}>
           <ErrorNote error={error} />
