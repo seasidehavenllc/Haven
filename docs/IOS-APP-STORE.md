@@ -6,7 +6,7 @@ The iPhone app is built on Expo's servers (EAS Build) from GitHub. You never nee
 | --- | --- |
 | App name | Haven |
 | Bundle ID | `com.seasidehaven.haven` |
-| Expo account / project | `skoobydoobee` / `haven` (project ID `21477736-dc27-483c-9e87-d82b7c53730c`) |
+| Expo account / project | `skoobydoobees-team` / `haven` (project ID `21477736-dc27-483c-9e87-d82b7c53730c`) |
 | API the app talks to | `https://api.seasidehavenllc.com` (set in `apps/mobile/eas.json`) |
 | Build numbers | Counted up automatically by Expo on each production build |
 
