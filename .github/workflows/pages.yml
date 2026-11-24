@@ -1,0 +1,60 @@
+# Builds the Haven website as static files and publishes it with GitHub Pages at sales.seasidehavenllc.com.
+#
+# Until the API is hosted, leave the repository variable HAVEN_API_URL unset: the site is then built as a
+# clearly labelled demo that runs on sample data in the browser. Once the API is live, set HAVEN_API_URL
+# (Settings → Secrets and variables → Actions → Variables) to e.g. https://api.seasidehavenllc.com and
+# re-run this workflow; the same site then talks to the real server.
+name: Deploy website to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**", "packages/shared/**", "pnpm-lock.yaml", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @haven/web...
+      - name: Build static site
+        working-directory: apps/web
+        env:
+          STATIC_EXPORT: "1"
+          NEXT_PUBLIC_DEMO: ${{ vars.HAVEN_API_URL == '' && '1' || '0' }}
+          NEXT_PUBLIC_API_URL: ${{ vars.HAVEN_API_URL }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_APPLE_SERVICES_ID: ${{ vars.NEXT_PUBLIC_APPLE_SERVICES_ID }}
+          NEXT_PUBLIC_APPLE_REDIRECT_URI: ${{ vars.NEXT_PUBLIC_APPLE_REDIRECT_URI }}
+        run: |
+          pnpm exec next build
+          touch out/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

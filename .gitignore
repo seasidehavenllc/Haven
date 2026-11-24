@@ -11,3 +11,6 @@ coverage
 apps/mobile/ios
 apps/mobile/android
 *.tsbuildinfo
+
+# Static website build
+apps/web/out/
