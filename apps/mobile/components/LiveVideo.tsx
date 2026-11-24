@@ -1,5 +1,5 @@
 import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useLocalParticipant, useRoomContext, useTracks } from "@livekit/react-native";
-import { Track } from "livekit-client";
+import { type LocalVideoTrack, Track } from "livekit-client";
 import { useEffect, useState, type MutableRefObject } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { api } from "@/lib/api";
@@ -75,22 +75,35 @@ function ViewerView() {
 function HostView({ cameraRef, controlsStyle }: { cameraRef?: MutableRefObject<HostCamera | null>; controlsStyle?: object }) {
   const room = useRoomContext();
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
+  const [front, setFront] = useState(true);
   useEffect(() => {
     if (!cameraRef) return;
-    cameraRef.current = { setCamera: async (on) => void (await localParticipant.setCameraEnabled(on)) };
+    // Turning the camera back on keeps whichever lens the host had chosen.
+    cameraRef.current = { setCamera: async (on) => void (await localParticipant.setCameraEnabled(on, { facingMode: front ? "user" : "environment" })) };
     return () => {
       cameraRef.current = null;
     };
-  }, [cameraRef, localParticipant]);
-  const [front, setFront] = useState(true);
+  }, [cameraRef, localParticipant, front]);
   const mine = useTracks([Track.Source.Camera]).filter(isTrackReference).find((t) => t.participant.isLocal);
 
+  const [flipping, setFlipping] = useState(false);
+
+  // Restart the camera track on the other lens. LiveKit swaps it into the published track, so viewers
+  // switch over without reconnecting. (react-native-webrtc's _switchCamera guesses the current lens from
+  // the track settings, which LiveKit's tracks don't always carry, so it could pick the same lens again.)
   const flip = async () => {
-    const pub = localParticipant.getTrackPublication(Track.Source.Camera);
-    const track: any = pub?.track;
-    // react-native-webrtc switches lenses on the existing camera track.
-    track?.mediaStreamTrack?._switchCamera?.();
-    setFront(!front);
+    const track = localParticipant.getTrackPublication(Track.Source.Camera)?.track as LocalVideoTrack | undefined;
+    if (!track || flipping) return;
+    const next = !front;
+    setFlipping(true);
+    try {
+      await track.restartTrack({ facingMode: next ? "user" : "environment" });
+      setFront(next);
+    } catch {
+      // Keep the current lens if the other one can't be opened.
+    } finally {
+      setFlipping(false);
+    }
   };
 
   return (
@@ -104,8 +117,8 @@ function HostView({ cameraRef, controlsStyle }: { cameraRef?: MutableRefObject<H
       )}
       <View style={[{ position: "absolute", right: 10, bottom: 10, flexDirection: "row", gap: 8 }, controlsStyle]}>
         <Round icon={isMicrophoneEnabled ? "mic" : "mic-off"} label={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"} onPress={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)} />
-        <Round icon={isCameraEnabled ? "videocam" : "videocam-off"} label={isCameraEnabled ? "Turn camera off" : "Turn camera on"} onPress={() => localParticipant.setCameraEnabled(!isCameraEnabled)} />
-        <Round icon="camera-reverse" label="Flip camera" onPress={flip} disabled={!isCameraEnabled || room.state !== "connected"} />
+        <Round icon={isCameraEnabled ? "videocam" : "videocam-off"} label={isCameraEnabled ? "Turn camera off" : "Turn camera on"} onPress={() => localParticipant.setCameraEnabled(!isCameraEnabled, { facingMode: front ? "user" : "environment" })} />
+        <Round icon="camera-reverse" label="Flip camera" onPress={flip} disabled={flipping || !isCameraEnabled || room.state !== "connected"} />
       </View>
     </View>
   );
