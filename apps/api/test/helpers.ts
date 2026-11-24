@@ -46,7 +46,7 @@ export async function buyer() {
 
 export async function admin() {
   const u = await register();
-  await prisma.user.update({ where: { id: u.userId }, data: { roles: ["BUYER", "ADMIN"] } });
+  await prisma.user.update({ where: { id: u.userId }, data: { roles: ["BUYER", "ADMIN"], staffRole: "OWNER" } });
   return { ...u, call: await client(u.token) };
 }
 

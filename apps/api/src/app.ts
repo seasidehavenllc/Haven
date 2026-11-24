@@ -20,6 +20,7 @@ import { auctionRoutes } from "./modules/auctions";
 import { billingRoutes } from "./modules/billing";
 import { safetyRoutes } from "./modules/safety";
 import { adminRoutes } from "./modules/admin";
+import { staffRoutes } from "./modules/staff";
 import { assistantRoutes } from "./modules/assistant";
 import { featureAvailability } from "./ai/gateway";
 import { activePaymentProvider, stripePublishableKey } from "./payments";
@@ -100,6 +101,7 @@ export async function buildApp() {
   await app.register(auctionRoutes);
   await app.register(billingRoutes);
   await app.register(adminRoutes);
+  await app.register(staffRoutes);
   await app.register(safetyRoutes);
   await app.register(assistantRoutes);
   return app;

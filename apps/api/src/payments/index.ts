@@ -55,6 +55,18 @@ export async function createPaymentIntent(opts: { amountCents: number; currency:
 }
 
 /**
+ * Refund part or all of a payment. Stripe refunds go back to the buyer's card; the test provider
+ * only records them. The idempotency key makes a retried request refund once.
+ */
+export async function refundPayment(opts: { provider: string; providerRef: string; amountCents: number; idempotencyKey: string; reason?: string }): Promise<{ providerRef: string; status: "SUCCEEDED" | "PENDING" }> {
+  if (opts.provider === "test") return { providerRef: `test_refund_${opts.idempotencyKey}`, status: "SUCCEEDED" };
+  if (opts.provider !== "stripe") throw new Error(`Can't refund payments made with ${opts.provider}`);
+  if (!env.STRIPE_SECRET_KEY) throw notConfigured("Payments", ["STRIPE_SECRET_KEY"]);
+  const r = await stripe("refunds", { payment_intent: opts.providerRef, amount: String(opts.amountCents), ...(opts.reason ? { "metadata[reason]": opts.reason.slice(0, 450) } : {}) }, opts.idempotencyKey);
+  return { providerRef: r.id, status: r.status === "succeeded" ? "SUCCEEDED" : "PENDING" };
+}
+
+/**
  * The key the card form needs. Returned only when it pairs with the secret key: a pk_test key with
  * an sk_live key (or the other way round) would show a form that can never charge.
  */

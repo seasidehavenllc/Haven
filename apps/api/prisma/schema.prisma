@@ -17,6 +17,13 @@ enum Role {
   ADMIN
 }
 
+/// Admin panel access. Null means not staff. See packages/shared/src/staff.ts for what each role can do.
+enum StaffRole {
+  OWNER
+  MANAGER
+  SUPPORT
+}
+
 enum AccountStatus {
   ACTIVE
   SUSPENDED
@@ -34,6 +41,7 @@ model User {
   avatarUrl    String?
   bio          String?
   roles        Role[]        @default([BUYER])
+  staffRole    StaffRole?
   status       AccountStatus @default(ACTIVE)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -776,13 +784,16 @@ model AiRoutingRule {
 
 /// Platform-wide controls (single row id = "global").
 model PlatformSettings {
-  id                    String   @id
-  aiEmergencyDisabled   Boolean  @default(false)
-  aiDailyBudgetMicros   BigInt?
-  aiMonthlyBudgetMicros BigInt?
-  marketplaceFeeBps     Int      @default(800) // 8.00%
-  allowTestPayments     Boolean  @default(false)
-  updatedAt             DateTime @updatedAt
+  id                      String   @id
+  aiEmergencyDisabled     Boolean  @default(false)
+  aiDailyBudgetMicros     BigInt?
+  aiMonthlyBudgetMicros   BigInt?
+  marketplaceFeeBps       Int      @default(800) // 8.00%
+  /// Largest refund (per order, in cents) each staff role can give. Owners have no limit.
+  managerRefundLimitCents Int      @default(50000)
+  supportRefundLimitCents Int      @default(10000)
+  allowTestPayments       Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
 }
 
 model AiPlan {
@@ -1028,16 +1039,16 @@ model Commission {
 }
 
 model Report {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   reporterId String
-  reporter   User     @relation("reporter", fields: [reporterId], references: [id])
+  reporter   User      @relation("reporter", fields: [reporterId], references: [id])
   targetType String // video | comment | stream | chat | user | product
   targetId   String
   reason     String
-  status     String   @default("OPEN") // OPEN | ACTIONED | DISMISSED
+  status     String    @default("OPEN") // OPEN | ACTIONED | DISMISSED
   resolvedAt DateTime?
   resolvedBy String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([status, createdAt])
   @@index([targetType, targetId])
@@ -1055,6 +1066,7 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
+  @@index([actorId, createdAt])
 }
 
 // ───────────────────────── Short-form video ─────────────────────────

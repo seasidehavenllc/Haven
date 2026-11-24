@@ -83,7 +83,7 @@ export async function authRoutes(app: FastifyInstance) {
     // Live chat arrives over the socket, so the apps hide these people's messages themselves.
     const blocks = await prisma.userBlock.findMany({ where: { OR: [{ blockerId: u.id }, { blockedId: u.id }] }, select: { blockerId: true, blockedId: true } });
     return {
-      user: { ...publicUser(user), email: user.email, bio: user.bio, hasPassword: !!user.passwordHash },
+      user: { ...publicUser(user), email: user.email, bio: user.bio, hasPassword: !!user.passwordHash, staffRole: user.status === "ACTIVE" ? user.staffRole : null },
       blockedUserIds: [...new Set(blocks.map((b) => (b.blockerId === u.id ? b.blockedId : b.blockerId)))],
       seller: user.seller
         ? {

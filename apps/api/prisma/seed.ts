@@ -168,8 +168,8 @@ async function main() {
   if (email && password) {
     await prisma.user.upsert({
       where: { email: email.toLowerCase() },
-      update: { roles: ["BUYER", "ADMIN"] },
-      create: { email: email.toLowerCase(), handle: "admin", displayName: "Platform Admin", passwordHash: await bcrypt.hash(password, 12), roles: ["BUYER", "ADMIN"] },
+      update: { roles: ["BUYER", "ADMIN"], staffRole: "OWNER" },
+      create: { email: email.toLowerCase(), handle: "admin", displayName: "Platform Admin", passwordHash: await bcrypt.hash(password, 12), roles: ["BUYER", "ADMIN"], staffRole: "OWNER" },
     });
     console.log(`Admin ready: ${email}`);
   } else console.log("Set ADMIN_EMAIL and ADMIN_PASSWORD to create the first admin.");
