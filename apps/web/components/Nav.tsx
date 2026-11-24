@@ -11,6 +11,13 @@ export function Nav() {
   const { me } = useMe();
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [menu, setMenu] = useState(false);
+  const signOut = async () => {
+    setMenu(false);
+    await api("/auth/logout", { body: {} }).catch(() => {});
+    clearTokens();
+    router.push("/");
+  };
   const isSeller = !!me?.seller;
   const isAdmin = me?.user.roles.includes("ADMIN");
   return (
@@ -58,16 +65,32 @@ export function Nav() {
                   Admin
                 </Link>
               )}
-              <button
-                className="hidden text-muted hover:text-ink sm:block"
-                onClick={async () => {
-                  await api("/auth/logout", { body: {} }).catch(() => {});
-                  clearTokens();
-                  router.push("/");
-                }}
-              >
+              <button className="hidden text-muted hover:text-ink sm:block" onClick={signOut}>
                 Sign out
               </button>
+              {/* Phones: Sell/Admin/Sign out are hidden above, so they live in this menu. */}
+              <div className="relative sm:hidden">
+                <button
+                  className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-line font-bold text-muted"
+                  aria-label="Account menu"
+                  aria-expanded={menu}
+                  onClick={() => setMenu((m) => !m)}
+                >
+                  {me.user.displayName.slice(0, 1).toUpperCase()}
+                </button>
+                {menu && (
+                  <div className="panel absolute right-0 mt-2 w-52 p-2 shadow-lg" onClick={() => setMenu(false)}>
+                    <p className="truncate px-3 py-2 text-xs text-muted">Signed in as {me.user.email}</p>
+                    <Link href="/live" className="block rounded px-3 py-2 hover:bg-line">Live</Link>
+                    <Link href="/videos" className="block rounded px-3 py-2 hover:bg-line">Videos</Link>
+                    <Link href="/auctions" className="block rounded px-3 py-2 hover:bg-line">Auctions</Link>
+                    <Link href="/orders" className="block rounded px-3 py-2 hover:bg-line">Orders</Link>
+                    <Link href={isSeller ? "/seller" : "/sell"} className="block rounded px-3 py-2 hover:bg-line">{isSeller ? "Studio" : "Sell"}</Link>
+                    {isAdmin && <Link href="/admin" className="block rounded px-3 py-2 hover:bg-line">Admin</Link>}
+                    <button className="block w-full rounded px-3 py-2 text-left text-muted hover:bg-line" onClick={signOut}>Sign out</button>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <>
