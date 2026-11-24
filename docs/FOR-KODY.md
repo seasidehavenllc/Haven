@@ -5,23 +5,18 @@ else Claude keeps building. Each item says what it unlocks, so you can do the on
 
 Keys go in the API server's environment (see `apps/api/.env.example`), never in the code or the apps.
 
-## Merge, in order
+## Waiting for you to merge
 
-Each pull request builds on the one before it, so merge them oldest first.
+- **#10** Website on GitHub Pages at sales.seasidehavenllc.com (a labelled demo until the server is up).
+- **#11** Free server setup: Render blueprint, Supabase/R2 file storage, keep-awake ping, and [DEPLOY.md](DEPLOY.md).
 
-1. ~~#2 Preview fixes~~ (merged). Its last commit, the Haven rebrand, was pushed after you merged, so it now rides along in #3.
-2. **#3** Rebrand plus notifications (inbox, push, email, settings).
-3. **#4** Shipping (seller rates, labels, tracking).
-4. **#5** Sign in with Apple and Google.
-5. **#6** Short-form shoppable video feed.
-6. **#7** AI host voice, mic transcription and avatar sessions, plus the AI salespeople page.
-7. **#8** Phone app: auctions (browse, bid, winner checkout) and profiles with follow; profiles on the web too.
+Everything before these (#2 to #9) is merged.
 
 ## Decisions
 
-- **Where to host the preview.** Haven needs a server for the API and Postgres, plus somewhere for the
-  web app. Render, Railway or Fly.io can run the whole thing; Vercel suits the web app. Pick one and
-  create the account, and Claude can wire up the deploy config.
+- ~~**Where to host.**~~ Decided: free hosting, website on GitHub Pages at `sales.seasidehavenllc.com`,
+  server on Render at `api.seasidehavenllc.com`, database and files on Supabase. Step-by-step setup and every
+  DNS record are in [DEPLOY.md](DEPLOY.md).
 - **Shipping defaults for new stores.** Each seller sets their own per-order rate, extra-item rate and
   free-shipping threshold. New stores start at $0 (free shipping) until they change it. Do you want a
   different starting default, like $5.99 per order?
@@ -36,6 +31,7 @@ Each pull request builds on the one before it, so merge them oldest first.
 
 | What it turns on | What to get | Env vars |
 | --- | --- | --- |
+| Haven online at sales.seasidehavenllc.com | Free Render and Supabase accounts (sign in with GitHub), plus DNS records `sales` and `api` at your registrar. Follow [DEPLOY.md](DEPLOY.md) | Set in Render; then the GitHub variable `HAVEN_API_URL` |
 | AI scanner, listings, assistant, co-host | Anthropic API key (console.anthropic.com) | `ANTHROPIC_API_KEY` |
 | Live video | LiveKit Cloud project | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
 | Real payments and seller payouts | Stripe account with Connect enabled | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |

@@ -270,13 +270,12 @@ export async function scannerRoutes(app: FastifyInstance) {
     const { user, seller } = await requireSeller(req);
     const s = await prisma.productScan.findFirst({ where: { id: (req.params as any).id, sellerId: seller.id, status: "FAILED" } });
     if (!s) throw notFound("Failed scan");
-    const { readFile } = await import("node:fs/promises");
-    const { uploadRoot } = await import("../storage");
+    const { readStored } = await import("../storage");
     const images = await Promise.all(
       s.imageUrls.map(async (u) => {
-        const key = u.split("/uploads/")[1]!;
+        const { key, bytes } = await readStored(u);
         const ext = key.split(".").pop();
-        return { mime: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg", bytes: await readFile(`${uploadRoot}/${key}`) };
+        return { mime: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg", bytes };
       }),
     );
     // new idempotency scope for the retry
