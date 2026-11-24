@@ -135,7 +135,7 @@ function AddItems({ onCreated }: { onCreated: () => void }) {
         <Btn style={{ flex: 1 }} kind={mode === "single" ? "primary" : "ghost"} title="One item" onPress={() => setMode("single")} />
         <Btn style={{ flex: 1 }} kind={mode === "batch" ? "primary" : "ghost"} title="Many items" onPress={() => setMode("batch")} />
       </View>
-      <T size={12} color={c.muted}>{mode === "single" ? "Several photos of the same item: front, back, labels, wear." : "One photo per item, up to 25 at once."}</T>
+      <T size={12} color={c.muted}>{mode === "single" ? "Up to 8 photos of the same item (front, back, labels, wear). They all go into one listing." : "One photo per item, up to 25 at once. Each photo becomes its own listing."}</T>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Btn style={{ flex: 1 }} kind="ghost" icon="camera-outline" title="Take photo" onPress={() => pick(true)} />
         <Btn style={{ flex: 1 }} kind="ghost" icon="images-outline" title="Choose" onPress={() => pick(false)} />
@@ -143,9 +143,18 @@ function AddItems({ onCreated }: { onCreated: () => void }) {
       {!!photos.length && (
         <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
           {photos.map((p, i) => (
-            <Pressable key={p.uri + i} onLongPress={() => setPhotos(photos.filter((_, j) => j !== i))}>
+            <View key={p.uri + i} style={{ paddingTop: 6, paddingRight: 6 }}>
               <Image source={{ uri: p.uri }} style={{ width: 72, height: 72, borderRadius: 10 }} />
-            </Pressable>
+              <Pressable
+                onPress={() => setPhotos(photos.filter((_, j) => j !== i))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove photo ${i + 1}`}
+                style={{ position: "absolute", top: 0, right: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.75)", borderWidth: 1, borderColor: "#fff", alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="close" size={14} color="#fff" />
+              </Pressable>
+            </View>
           ))}
         </ScrollView>
       )}
