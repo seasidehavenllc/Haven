@@ -84,7 +84,7 @@ export const Money = ({ cents, size, weight = "700" }: { cents: number | null | 
 /** Network failures read as "Failed to fetch" or "Network request failed"; say what that means instead. */
 export const friendlyError = (error: any) => {
   const m: string = error?.message ?? String(error);
-  return /failed to fetch|network request failed|network request timed out|load failed/i.test(m) ? "Can't reach Haven right now. Check your connection, then pull down to try again." : m;
+  return /fetch failed|failed to fetch|network request failed|timed out|load failed|connection was lost|offline|internet connection/i.test(m) ? "Can't reach Haven right now. Check your connection and try again." : m;
 };
 
 export function ErrorNote({ error }: { error: any }) {
