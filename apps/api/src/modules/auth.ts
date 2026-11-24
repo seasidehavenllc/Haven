@@ -78,12 +78,15 @@ export async function authRoutes(app: FastifyInstance) {
     const u = requireUser(req);
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: u.id },
-      include: { seller: { include: { storefront: true, subscription: { include: { plan: true } } } } },
+      include: { seller: { include: { storefront: true, subscription: { include: { plan: true } } } }, sellerApplication: { select: { status: true, decisionNote: true } } },
     });
     // Live chat arrives over the socket, so the apps hide these people's messages themselves.
     const blocks = await prisma.userBlock.findMany({ where: { OR: [{ blockerId: u.id }, { blockedId: u.id }] }, select: { blockerId: true, blockedId: true } });
     return {
       user: { ...publicUser(user), email: user.email, bio: user.bio, hasPassword: !!user.passwordHash, staffRole: user.status === "ACTIVE" ? user.staffRole : null },
+      /** The approved-seller check: true only when staff approved this person to sell and go live. */
+      canSell: user.seller?.status === "APPROVED",
+      sellerApplication: user.sellerApplication,
       blockedUserIds: [...new Set(blocks.map((b) => (b.blockerId === u.id ? b.blockedId : b.blockerId)))],
       seller: user.seller
         ? {

@@ -126,6 +126,8 @@ export async function safetyRoutes(app: FastifyInstance) {
       await tx.oAuthAccount.deleteMany({ where: { userId: u.id } });
       await tx.pushDevice.deleteMany({ where: { userId: u.id } });
       await tx.address.deleteMany({ where: { userId: u.id } });
+      // Seller applications hold a legal name, phone, birth date and address.
+      await tx.sellerApplication.deleteMany({ where: { userId: u.id } });
       await tx.wishlistItem.deleteMany({ where: { userId: u.id } });
       await tx.follow.deleteMany({ where: { OR: [{ followerId: u.id }, { followeeId: u.id }] } });
       await tx.userBlock.deleteMany({ where: { OR: [{ blockerId: u.id }, { blockedId: u.id }] } });

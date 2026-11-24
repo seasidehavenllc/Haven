@@ -131,19 +131,25 @@ const ACTIONS: Record<string, string> = {
   "moderation.report.remove": "Removed reported content",
   "moderation.report.suspend_owner": "Suspended a reported person",
   "moderation.report.dismiss": "Dismissed a report",
+  "admin.seller_application.view": "Opened a seller application",
+  "admin.seller_application.approve": "Approved a seller application",
+  "admin.seller_application.reject": "Rejected a seller application",
+  "admin.seller_application.request_info": "Asked a seller applicant for more info",
+  "seller.application.submit": "Sent a seller application",
+  "seller.application.resubmit": "Sent a seller application again",
 };
 export function AuditTab() {
   const [hideViews, setHideViews] = useState(true);
   const { data, loading, error } = useApi<any[]>("/admin/audit");
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
-  const rows = (data ?? []).filter((r) => !(hideViews && r.action === "admin.user.view"));
+  const rows = (data ?? []).filter((r) => !(hideViews && r.action.endsWith(".view")));
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p className="text-muted">Every action staff take in the admin panel, newest first. Entries can't be edited or deleted.</p>
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={hideViews} onChange={(e) => setHideViews(e.target.checked)} /> Hide "opened a person's details"
+          <input type="checkbox" checked={hideViews} onChange={(e) => setHideViews(e.target.checked)} /> Hide "opened details"
         </label>
       </div>
       {!rows.length && <p className="panel p-4 text-sm text-muted">Nothing yet.</p>}
@@ -445,6 +451,174 @@ export function UserDetail({ id, staff, onBack }: { id: string; staff: Staff; on
         </div>
       )}
       {has(staff, "users.message") && <MessageBox userId={u.id} handle={u.handle} />}
+    </div>
+  );
+}
+
+// ── Seller applications ──
+const APP_STATUSES = [
+  ["SUBMITTED", "Waiting"],
+  ["NEEDS_INFO", "Asked for info"],
+  ["APPROVED", "Approved"],
+  ["REJECTED", "Rejected"],
+] as const;
+
+export function SellerApplicationsTab({ staff }: { staff: Staff }) {
+  const [filter, setFilter] = useState<string>("SUBMITTED");
+  const [open, setOpen] = useState<string | null>(null);
+  const list = useApi<{ applications: any[]; counts: Record<string, number> }>(`/admin/seller-applications?status=${filter}`, [filter]);
+  if (open) return <ApplicationDetail id={open} staff={staff} onBack={() => (setOpen(null), list.reload())} />;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted">
+        People who want to sell. Anyone can shop, but listing items and going live needs an approved application.
+        {!has(staff, "sellers.manage") && " Your role can look; an owner or manager decides."}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {APP_STATUSES.map(([k, label]) => (
+          <button key={k} onClick={() => setFilter(k)} className={`rounded-full px-3 py-1.5 text-sm ${filter === k ? "bg-brand text-brand-ink" : "hover:bg-card"}`}>
+            {label}
+            {list.data?.counts[k] ? ` (${list.data.counts[k]})` : ""}
+          </button>
+        ))}
+      </div>
+      {list.loading ? (
+        <Loading />
+      ) : list.error ? (
+        <ErrorNote error={list.error} />
+      ) : (
+        <div className="divide-y divide-line rounded-2xl border border-line bg-card text-sm">
+          {!list.data?.applications.length && <p className="p-4 text-muted">{filter === "SUBMITTED" ? "No applications waiting. Nice." : "None."}</p>}
+          {list.data?.applications.map((a) => (
+            <button key={a.id} onClick={() => setOpen(a.id)} className="flex w-full flex-wrap items-center gap-3 p-3 text-left hover:bg-bg/40">
+              {a.sampleImageUrls[0] ? <img src={a.sampleImageUrls[0]} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="h-12 w-12 rounded-lg bg-line" />}
+              <div className="min-w-0 flex-1">
+                <b>{a.businessName}</b> <span className="text-muted">@{a.user.handle}</span>
+                <div className="text-xs text-muted">
+                  {a.categories.join(", ")} · {a.businessType === "BUSINESS" ? "Business" : "Individual"} · {a.payoutsDetailsDone ? "Payouts set up" : "No payouts yet"}
+                </div>
+              </div>
+              <span className="text-xs text-muted">{a.submittedAt ? `Sent ${when(a.submittedAt)}` : when(a.updatedAt)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApplicationDetail({ id, staff, onBack }: { id: string; staff: Staff; onBack: () => void }) {
+  const d = useApi<any>(`/admin/seller-applications/${id}`);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<any>(null);
+  if (d.loading) return <Loading />;
+  if (d.error || !d.data) return <ErrorNote error={d.error} />;
+  const a = d.data;
+  const act = async (path: string, body: unknown, confirmText?: string) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/admin/seller-applications/${id}/${path}`, { body });
+      setNote("");
+      await d.reload();
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const addr = a.address ?? {};
+  const row = (label: string, value: React.ReactNode) => (
+    <div className="grid grid-cols-[140px_1fr] gap-2 py-1">
+      <span className="text-muted">{label}</span>
+      <span className="min-w-0 break-words">{value || "—"}</span>
+    </div>
+  );
+  const ACTION_WORDS: Record<string, string> = {
+    "seller.application.submit": "sent it",
+    "seller.application.resubmit": "sent it again",
+    "admin.seller_application.approve": "approved",
+    "admin.seller_application.reject": "rejected",
+    "admin.seller_application.request_info": "asked for more info",
+  };
+  return (
+    <div className="space-y-4">
+      <button className="btn-ghost px-3 py-1.5 text-sm" onClick={onBack}>← All applications</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display text-2xl font-bold">{a.businessName}</h2>
+        <span className="chip">{status(a.status)}</span>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="panel p-4 text-sm">
+          <div className="mb-2 font-semibold">Who</div>
+          {row("Account", <>@{a.user.handle} · {a.user.displayName} · joined {new Date(a.user.createdAt).toLocaleDateString()}</>)}
+          {row("Legal name", a.legalName)}
+          {row("Email", a.user.email)}
+          {row("Phone", a.phone)}
+          {row("Age", a.age != null ? `${a.age}${a.dateOfBirth ? ` (born ${a.dateOfBirth})` : ""}` : null)}
+          {row("Address", [addr.line1, addr.line2, addr.city, addr.region, addr.postalCode, addr.country].filter(Boolean).join(", "))}
+          {row("Track record", `${a.user._count.orders} orders as a shopper · ${a.reportsAgainst} reports against them`)}
+          {a.piiMasked && <p className="mt-2 text-xs text-muted">Contact details are hidden for your role.</p>}
+        </div>
+        <div className="panel p-4 text-sm">
+          <div className="mb-2 font-semibold">Business and payouts</div>
+          {row("Type", a.businessType === "BUSINESS" ? "Registered business" : "Individual")}
+          {row("Store", <>{a.storeName} · haven/store/{a.storeSlug}</>)}
+          {row(
+            "Payouts",
+            a.payoutsMode === "off"
+              ? "Stripe isn't connected on Haven yet"
+              : a.payoutsEnabled
+                ? "Stripe verified, payouts on"
+                : a.payoutsDetailsDone
+                  ? "Stripe form done, Stripe still verifying"
+                  : "Not set up",
+          )}
+          {row("Tax and ID", "Collected and verified by Stripe")}
+          {row("Seller terms", a.termsAcceptedAt ? `Agreed ${when(a.termsAcceptedAt)} (version ${a.termsVersion})` : "Not agreed")}
+        </div>
+      </div>
+      <div className="panel space-y-2 p-4 text-sm">
+        <div className="font-semibold">What they sell</div>
+        <div className="flex flex-wrap gap-1">{a.categories.map((c: string) => <span key={c} className="chip">{c}</span>)}</div>
+        <p className="whitespace-pre-wrap">{a.description}</p>
+        {row("Inventory", a.inventorySize ? `${a.inventorySize} items` : null)}
+        {row("Experience", a.experience)}
+        {row("Links", a.socialLinks.length ? a.socialLinks.map((l: string) => <a key={l} href={l} target="_blank" rel="noreferrer noopener" className="block break-all underline">{l}</a>) : null)}
+        {!!a.sampleImageUrls.length && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {a.sampleImageUrls.map((u: string) => (
+              <a key={u} href={u} target="_blank" rel="noreferrer noopener"><img src={u} alt="Sample item" className="h-28 w-28 rounded-xl object-cover" /></a>
+            ))}
+          </div>
+        )}
+      </div>
+      {!!a.history.length && (
+        <div className="panel p-4 text-sm">
+          <div className="mb-2 font-semibold">History</div>
+          {a.history.map((h: any, i: number) => (
+            <div key={i} className="py-1">
+              <span className="text-muted">{when(h.createdAt)}</span> · @{h.actor?.handle ?? "system"} {ACTION_WORDS[h.action] ?? h.action}
+              {h.data?.note && <span className="text-muted">: “{h.data.note}”</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {a.status === "SUBMITTED" && a.canDecide && (
+        <div className="panel space-y-3 p-4">
+          <label className="label" htmlFor="note">Message to the applicant (needed to reject or ask for info)</label>
+          <textarea id="note" className="input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Please add a link to where you sell now, or photos of a few items." />
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" disabled={busy} onClick={() => act("approve", { note: note.trim() || undefined }, `Approve ${a.businessName}? They can list items and go live right away.`)}>Approve</button>
+            <button className="btn-ghost" disabled={busy || note.trim().length < 5} onClick={() => act("request-info", { message: note.trim() })}>Ask for more info</button>
+            <button className="btn bg-live text-white" disabled={busy || note.trim().length < 5} onClick={() => act("reject", { reason: note.trim() }, "Reject this application? They'll see your reason and can apply again.")}>Reject</button>
+          </div>
+          <ErrorNote error={err} />
+        </div>
+      )}
+      {a.status !== "SUBMITTED" && a.decisionNote && <p className="panel p-4 text-sm"><b>{a.status === "NEEDS_INFO" ? "Asked:" : "Note to applicant:"}</b> {a.decisionNote}</p>}
     </div>
   );
 }

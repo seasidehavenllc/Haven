@@ -1,6 +1,6 @@
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import { Alert, Image, ScrollView, View } from "react-native";
 import { formatMoney, StaffRoleInfo, type StaffPermission, type StaffRole } from "@haven/shared";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
@@ -18,7 +18,7 @@ export default function AdminScreen() {
   const c = useColors();
   const { me } = useMe();
   const staff = useApi<Staff>(me?.user.staffRole ? "/admin/me" : null, [me?.user.staffRole]);
-  const [section, setSection] = useState<"home" | "orders" | "reports">("home");
+  const [section, setSection] = useState<"home" | "orders" | "reports" | "applications">("home");
   if (!me?.user.staffRole) return <View style={s.screen}><Empty title="Staff only">This area is for the Haven team.</Empty></View>;
   if (staff.loading || !staff.data) return staff.error ? <View style={s.screen}><ErrorNote error={staff.error} /></View> : <Loading />;
   const st = staff.data;
@@ -26,6 +26,7 @@ export default function AdminScreen() {
   const has = (p: StaffPermission) => st.permissions.includes(p);
   if (section === "orders") return <Orders staff={st} onBack={() => setSection("home")} />;
   if (section === "reports") return <Reports canAct={has("content.moderate")} onBack={() => setSection("home")} />;
+  if (section === "applications") return <Applications onBack={() => setSection("home")} />;
   return (
     <ScrollView contentContainerStyle={s.screen}>
       <View style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
@@ -35,6 +36,7 @@ export default function AdminScreen() {
       </View>
       <Overview />
       {has("orders.view") && <Btn kind="ghost" icon="receipt-outline" title="Find an order" onPress={() => setSection("orders")} />}
+      {has("sellers.view") && <Btn kind="ghost" icon="storefront-outline" title="Seller applications" onPress={() => setSection("applications")} />}
       {has("reports.view") && <Btn kind="ghost" icon="flag-outline" title="Reports to review" onPress={() => setSection("reports")} />}
       <Btn kind="ghost" icon="desktop-outline" title="Open the full admin panel" onPress={() => WebBrowser.openBrowserAsync(`${SITE}/admin`)} />
       <T size={12} color={c.muted}>The full panel on the web has {[has("users.view") && "people", has("sellers.manage") && "sellers", has("shows.manage") && "live shows", has("staff.manage") && "staff roles", has("audit.view") && "the audit log", has("finance.view") && "finances"].filter(Boolean).join(", ")}.</T>
@@ -209,6 +211,119 @@ function Reports({ canAct, onBack }: { canAct: boolean; onBack: () => void }) {
           )}
         </View>
       ))}
+    </ScrollView>
+  );
+}
+
+const APP_TABS = [
+  ["SUBMITTED", "Waiting"],
+  ["NEEDS_INFO", "Asked"],
+  ["APPROVED", "Approved"],
+  ["REJECTED", "Rejected"],
+] as const;
+
+/** Seller applications: owners and managers decide, support can look. The server enforces both. */
+function Applications({ onBack }: { onBack: () => void }) {
+  const c = useColors();
+  const [tab, setTab] = useState<string>("SUBMITTED");
+  const [open, setOpen] = useState<string | null>(null);
+  const list = useApi<{ applications: any[]; counts: Record<string, number> }>(`/admin/seller-applications?status=${tab}`, [tab]);
+  if (open) return <ApplicationDetail id={open} onBack={() => (setOpen(null), list.reload())} />;
+  return (
+    <ScrollView contentContainerStyle={s.screen}>
+      <Btn kind="ghost" icon="chevron-back" title="Admin" onPress={onBack} />
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        {APP_TABS.map(([k, label]) => (
+          <Btn key={k} style={{ flex: 1, paddingHorizontal: 4 }} kind={tab === k ? "primary" : "ghost"} title={`${label}${list.data?.counts[k] ? ` ${list.data.counts[k]}` : ""}`} onPress={() => setTab(k)} />
+        ))}
+      </View>
+      {list.loading ? <Loading /> : list.error ? <ErrorNote error={list.error} /> : !list.data?.applications.length ? <Empty title={tab === "SUBMITTED" ? "No applications waiting" : "None"} /> : null}
+      {list.data?.applications.map((a) => (
+        <View key={a.id} style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
+          <T weight="700">{a.businessName} <T size={13} color={c.muted}>@{a.user.handle}</T></T>
+          <T size={13} color={c.muted}>{a.categories.join(", ")}</T>
+          <T size={12} color={c.muted}>{a.submittedAt ? `Sent ${new Date(a.submittedAt).toLocaleString()}` : ""}{a.payoutsDetailsDone ? " · payouts set up" : ""}</T>
+          <Btn kind="ghost" title="Open" onPress={() => setOpen(a.id)} />
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+function ApplicationDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const c = useColors();
+  const d = useApi<any>(`/admin/seller-applications/${id}`);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<any>(null);
+  if (d.loading) return <Loading />;
+  if (d.error || !d.data) return <View style={s.screen}><ErrorNote error={d.error} /></View>;
+  const a = d.data;
+  const addr = a.address ?? {};
+  const act = async (path: string, body: unknown) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/admin/seller-applications/${id}/${path}`, { body });
+      setNote("");
+      await d.reload();
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const confirm = (title: string, msg: string, go: () => void) => Alert.alert(title, msg, [{ text: "Cancel", style: "cancel" }, { text: "Yes", onPress: go }]);
+  const line = (label: string, value: any) => (value ? <T size={13}><T size={13} color={c.muted}>{label}: </T>{value}</T> : null);
+  return (
+    <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <Btn kind="ghost" icon="chevron-back" title="Applications" onPress={onBack} />
+      <View style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <T weight="800" size={18}>{a.businessName}</T>
+          <Chip label={nice(a.status)} color={c.line} text={c.ink} />
+        </View>
+        {line("Account", `@${a.user.handle} · joined ${new Date(a.user.createdAt).toLocaleDateString()}`)}
+        {line("Legal name", a.legalName)}
+        {line("Email", a.user.email)}
+        {line("Phone", a.phone)}
+        {line("Age", a.age)}
+        {line("Address", [addr.line1, addr.city, addr.region, addr.postalCode, addr.country].filter(Boolean).join(", "))}
+        {line("Track record", `${a.user._count.orders} orders · ${a.reportsAgainst} reports against them`)}
+        {a.piiMasked && <T size={12} color={c.muted}>Contact details are hidden for your role.</T>}
+      </View>
+      <View style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
+        {line("Type", a.businessType === "BUSINESS" ? "Registered business" : "Individual")}
+        {line("Store", `${a.storeName} (/${a.storeSlug})`)}
+        {line("Payouts", a.payoutsMode === "off" ? "Stripe isn't connected on Haven yet" : a.payoutsEnabled ? "Stripe verified" : a.payoutsDetailsDone ? "Stripe still verifying" : "Not set up")}
+        {line("Terms", a.termsAcceptedAt ? `agreed ${new Date(a.termsAcceptedAt).toLocaleDateString()}` : "not agreed")}
+        {line("Sells", a.categories.join(", "))}
+        <T size={13}>{a.description}</T>
+        {line("Inventory", a.inventorySize)}
+        {line("Experience", a.experience)}
+        {a.socialLinks.map((l: string) => <T key={l} size={13} color={c.brandLight} onPress={() => WebBrowser.openBrowserAsync(l)}>{l}</T>)}
+        {!!a.sampleImageUrls.length && (
+          <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
+            {a.sampleImageUrls.map((u: string) => <Image key={u} source={{ uri: u }} style={{ width: 96, height: 96, borderRadius: 10 }} />)}
+          </ScrollView>
+        )}
+      </View>
+      {a.history.map((h: any, i: number) => (
+        <T key={i} size={12} color={c.muted}>{new Date(h.createdAt).toLocaleString()} · @{h.actor?.handle ?? "system"} · {h.action.split(".").pop()?.replace("_", " ")}{h.data?.note ? `: “${h.data.note}”` : ""}</T>
+      ))}
+      {a.status === "SUBMITTED" && !a.canDecide && <Notice>Your role can look. An owner or manager decides.</Notice>}
+      {a.status === "SUBMITTED" && a.canDecide && (
+        <View style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
+          <Field label="Message to the applicant (needed to reject or ask)" value={note} onChangeText={setNote} multiline style={{ minHeight: 70, paddingTop: 10 }} />
+          <Btn title="Approve" busy={busy} onPress={() => confirm(`Approve ${a.businessName}?`, "They can list items and go live right away.", () => act("approve", { note: note.trim() || undefined }))} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Btn style={{ flex: 1 }} kind="ghost" title="Ask for info" disabled={busy || note.trim().length < 5} onPress={() => act("request-info", { message: note.trim() })} />
+            <Btn style={{ flex: 1 }} kind="danger" title="Reject" disabled={busy || note.trim().length < 5} onPress={() => confirm("Reject this application?", "They'll see your message and can apply again.", () => act("reject", { reason: note.trim() }))} />
+          </View>
+        </View>
+      )}
+      {a.status !== "SUBMITTED" && a.decisionNote && <Notice tone="ai">{a.decisionNote}</Notice>}
+      <ErrorNote error={err} />
     </ScrollView>
   );
 }

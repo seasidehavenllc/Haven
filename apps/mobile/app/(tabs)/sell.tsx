@@ -5,48 +5,25 @@ import { Image, Pressable, RefreshControl, ScrollView, View } from "react-native
 import { api, saveTokens } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
 import { Btn, Chip, Empty, ErrorNote, Field, Loading, ModeBadge, Notice, T, s, useColors } from "@/components/ui";
+import { SellerApply } from "@/components/SellerApply";
 
 type Photo = { uri: string; mimeType?: string | null; fileName?: string | null };
 
 export default function Sell() {
-  const { me, ready } = useMe();
+  const { me, ready, reload } = useMe();
   // The app only shows the tabs to signed-in people (app/_layout.tsx).
   if (!ready || !me) return <Loading />;
-  return me.seller ? <SellerHome /> : <OpenStore />;
-}
-
-function OpenStore() {
-  const c = useColors();
-  const { reload } = useMe();
-  const [f, setF] = useState({ businessName: "", slug: "" });
-  const [err, setErr] = useState<any>(null);
-  const [busy, setBusy] = useState(false);
+  // Selling and going live are for approved sellers only. Everyone else sees their application.
+  if (me.canSell) return <SellerHome />;
   return (
-    <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled">
-      <T size={24} weight="800">Open your store</T>
-      <T size={13} color={c.muted}>Free to start. You get the Starter AI plan with 100 credits a month (about 20 photo scans).</T>
-      <Field label="Business name" value={f.businessName} onChangeText={(v) => setF({ businessName: v, slug: f.slug || v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") })} />
-      <Field label="Store address" value={f.slug} onChangeText={(v) => setF({ ...f, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, "") })} autoCapitalize="none" />
-      <ErrorNote error={err} />
-      <Btn
-        title="Create store"
-        busy={busy}
-        disabled={!f.businessName || f.slug.length < 3}
-        onPress={async () => {
-          setBusy(true);
-          setErr(null);
-          try {
-            const r = await api("/sellers", { body: { businessName: f.businessName, storefront: { name: f.businessName, slug: f.slug } } });
-            await saveTokens({ accessToken: r.accessToken });
-            await reload();
-          } catch (e) {
-            setErr(e);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-    </ScrollView>
+    <SellerApply
+      onApproved={async () => {
+        // A fresh token carries the new seller id (used to join the seller's live updates).
+        const r = await api("/auth/token", { method: "POST" }).catch(() => null);
+        if (r?.accessToken) await saveTokens({ accessToken: r.accessToken });
+        await reload();
+      }}
+    />
   );
 }
 

@@ -31,7 +31,7 @@ export default function NewVideo() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<any>(null);
   const preview = useRef<HTMLVideoElement>(null);
-  const isSeller = !!me?.seller;
+  const isSeller = !!me?.canSell;
   const mine = useApi<any[]>(isSeller ? "/seller/products" : null, [isSeller]);
   const search = useApi<{ items: any[] }>(!isSeller && q.trim().length > 1 ? `/products?q=${encodeURIComponent(q)}&pageSize=8` : null, [q]);
 

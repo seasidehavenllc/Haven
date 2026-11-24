@@ -81,13 +81,26 @@ export function requireRole(req: FastifyRequest, role: Role): AuthUser {
   return u;
 }
 
-/** Sellers act on their own account. Re-checks DB status so suspensions apply immediately. */
+/**
+ * The approved-seller gate. Every selling and go-live route calls this. It passes only for a person
+ * whose seller account is APPROVED (which happens when staff approve their seller application), and
+ * re-reads the database on each request, so a suspension applies immediately.
+ */
 export async function requireSeller(req: FastifyRequest) {
   const u = requireUser(req);
   const seller = await prisma.sellerAccount.findUnique({ where: { userId: u.id } });
   if (!seller) throw forbidden("Seller account required");
   if (seller.status !== "APPROVED") throw forbidden(`Seller account is ${seller.status.toLowerCase()}`);
   return { user: u, seller };
+}
+
+/** Same check as requireSeller, by name, for features that gate on "approved seller". */
+export const requireApprovedSeller = requireSeller;
+
+/** True when this person can sell and go live right now. For checks that shouldn't throw. */
+export async function isApprovedSeller(userId: string) {
+  const s = await prisma.sellerAccount.findUnique({ where: { userId }, select: { status: true } });
+  return s?.status === "APPROVED";
 }
 
 export interface StaffUser extends AuthUser {

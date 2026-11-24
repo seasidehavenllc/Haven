@@ -88,3 +88,53 @@ export function verifyStripeSignature(raw: Buffer, header: string | undefined, s
   const sigs = header.split(",").filter((p) => p.startsWith("v1=")).map((p) => p.slice(3));
   return sigs.some((s) => s.length === expected.length && timingSafeEqual(Buffer.from(s), Buffer.from(expected)));
 }
+
+// ── Seller payouts: Stripe Connect Express ──
+
+/**
+ * How seller payout setup works on this server:
+ *  - "stripe": real Stripe Connect onboarding (Stripe collects identity, SSN/EIN and bank details).
+ *  - "test":   outside production with ALLOW_TEST_PAYMENTS, payout setup completes instantly.
+ *  - "off":    Stripe isn't connected yet. Applications can still be sent; staff see payouts aren't set up.
+ */
+export function payoutsMode(): "stripe" | "test" | "off" {
+  return activePaymentProvider() ?? "off";
+}
+
+async function stripeGet(path: string) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, { headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+  const json = (await res.json()) as any;
+  if (!res.ok) throw new Error(`Stripe error: ${json?.error?.message ?? res.status}`);
+  return json;
+}
+
+/** Create a Stripe Express account for a seller applicant. */
+export async function createConnectAccount(opts: { applicationId: string; userId: string; email: string; businessType: "INDIVIDUAL" | "BUSINESS"; country: string }) {
+  const acct = await stripe(
+    "accounts",
+    {
+      type: "express",
+      country: opts.country || "US",
+      email: opts.email,
+      business_type: opts.businessType === "BUSINESS" ? "company" : "individual",
+      "capabilities[transfers][requested]": "true",
+      "capabilities[card_payments][requested]": "true",
+      "metadata[userId]": opts.userId,
+      "metadata[applicationId]": opts.applicationId,
+    },
+    `connect-account-${opts.applicationId}`,
+  );
+  return acct.id as string;
+}
+
+/** A one-time link to Stripe's hosted payout setup. Links expire after a few minutes. */
+export async function connectOnboardingLink(accountId: string, returnUrl: string, refreshUrl: string) {
+  const link = await stripe("account_links", { account: accountId, type: "account_onboarding", return_url: returnUrl, refresh_url: refreshUrl }, `link-${accountId}-${Date.now()}`);
+  return link.url as string;
+}
+
+/** Whether the seller finished Stripe's form, and whether Stripe will pay them out yet. */
+export async function connectAccountStatus(accountId: string) {
+  const a = await stripeGet(`accounts/${accountId}`);
+  return { detailsSubmitted: !!a.details_submitted, payoutsEnabled: !!a.payouts_enabled };
+}

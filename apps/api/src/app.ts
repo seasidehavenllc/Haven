@@ -12,6 +12,7 @@ import { HttpError } from "./lib/errors";
 import { uploadRoot } from "./storage";
 import { authRoutes } from "./modules/auth";
 import { sellerRoutes } from "./modules/sellers";
+import { sellerApplicationRoutes } from "./modules/sellerApplications";
 import { catalogRoutes } from "./modules/catalog";
 import { commerceRoutes } from "./modules/commerce";
 import { scannerRoutes } from "./modules/scanner";
@@ -94,6 +95,7 @@ export async function buildApp() {
   await app.register(aiVoiceRoutes);
   await app.register(authRoutes);
   await app.register(sellerRoutes);
+  await app.register(sellerApplicationRoutes);
   await app.register(catalogRoutes);
   await app.register(commerceRoutes);
   await app.register(scannerRoutes);

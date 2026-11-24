@@ -18,7 +18,7 @@ export function Nav() {
     clearTokens();
     router.push("/");
   };
-  const isSeller = !!me?.seller;
+  const isSeller = !!me?.canSell;
   const isAdmin = !!me?.user.staffRole;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">

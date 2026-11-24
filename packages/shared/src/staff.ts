@@ -7,7 +7,8 @@
  *            orders and refunds up to a limit. Sees contact details masked. No money settings,
  *            no bans, no role changes, no audit log.
  * SUPPORT  – helping customers: look people up, see their orders and contact details, refund up to
- *            a smaller limit, and send them a message. No moderation, no settings, no finances.
+ *            a smaller limit, and send them a message. Sees seller applications, can't decide them.
+ *            No moderation, no settings, no finances.
  */
 export const StaffRoles = ["OWNER", "MANAGER", "SUPPORT"] as const;
 export type StaffRole = (typeof StaffRoles)[number];
@@ -27,7 +28,8 @@ export const StaffPermissions = [
   "orders.refund", // up to the role's refund limit
   "reports.view",
   "content.moderate", // remove videos, comments, chat and listings; resolve reports
-  "sellers.manage", // approve, reject or suspend seller accounts; turn a seller's AI off
+  "sellers.view", // see seller applications and sellers (read only)
+  "sellers.manage", // approve, reject or suspend seller accounts and applications; turn a seller's AI off
   "shows.manage", // see and end live shows
 ] as const;
 export type StaffPermission = (typeof StaffPermissions)[number];
@@ -40,10 +42,11 @@ const MANAGER: StaffPermission[] = [
   "orders.refund",
   "reports.view",
   "content.moderate",
+  "sellers.view",
   "sellers.manage",
   "shows.manage",
 ];
-const SUPPORT: StaffPermission[] = ["users.view", "users.message", "pii.view", "orders.view", "orders.refund", "reports.view"];
+const SUPPORT: StaffPermission[] = ["users.view", "users.message", "pii.view", "orders.view", "orders.refund", "reports.view", "sellers.view"];
 
 export const RolePermissions: Record<StaffRole, readonly StaffPermission[]> = {
   OWNER: StaffPermissions,
@@ -53,8 +56,8 @@ export const RolePermissions: Record<StaffRole, readonly StaffPermission[]> = {
 
 export const StaffRoleInfo: Record<StaffRole, { name: string; summary: string }> = {
   OWNER: { name: "Owner", summary: "Everything: staff roles, fees, AI settings, finances and the audit log." },
-  MANAGER: { name: "Manager", summary: "Runs day-to-day: moderation, listings, sellers, live shows, suspensions and refunds up to a limit. Contact details are masked. Can't change money settings, ban people or manage staff." },
-  SUPPORT: { name: "Customer support", summary: "Helps customers: looks people up, sees their orders and contact details, sends messages and refunds up to a small limit. No moderation, settings or finances." },
+  MANAGER: { name: "Manager", summary: "Runs day-to-day: moderation, listings, seller applications and sellers, live shows, suspensions and refunds up to a limit. Contact details are masked. Can't change money settings, ban people or manage staff." },
+  SUPPORT: { name: "Customer support", summary: "Helps customers: looks people up, sees their orders and contact details, sends messages and refunds up to a small limit. Can see seller applications but not decide them. No moderation, settings or finances." },
 };
 
 export const can = (role: StaffRole | null | undefined, p: StaffPermission) => !!role && RolePermissions[role].includes(p);

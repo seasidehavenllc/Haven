@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app";
+import { createSellerAccount } from "../src/modules/sellerApplications";
 import { prisma } from "../src/db";
 import { textAdapters, ProviderError, type TextAdapter } from "../src/ai/adapters";
 
@@ -31,12 +32,12 @@ export async function register(role: "BUYER" | "SELLER" = "BUYER") {
   return { token: r.json.accessToken as string, refreshToken: r.json.refreshToken as string, userId: r.json.user.id as string, tag };
 }
 
+/** An approved seller. Skips the application form (tested on its own in seller-applications.test.ts). */
 export async function seller() {
   const u = await register("SELLER");
-  const c = await client(u.token);
-  const r = await c("POST", "/sellers", { businessName: `Shop ${u.tag}`, storefront: { name: `Shop ${u.tag}`, slug: `shop-${u.tag}` } });
-  if (r.status !== 200) throw new Error(JSON.stringify(r.json));
-  return { ...u, token: r.json.accessToken as string, sellerId: r.json.seller.id as string, call: await client(r.json.accessToken) };
+  const sellerRow = await prisma.$transaction((tx) => createSellerAccount(tx, { userId: u.userId, businessName: `Shop ${u.tag}`, storefront: { name: `Shop ${u.tag}`, slug: `shop-${u.tag}` } }));
+  const token = (await (await client(u.token))("POST", "/auth/token")).json.accessToken as string;
+  return { ...u, token, sellerId: sellerRow.id as string, call: await client(token) };
 }
 
 export async function buyer() {

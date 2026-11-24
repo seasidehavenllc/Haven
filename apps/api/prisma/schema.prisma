@@ -74,6 +74,8 @@ model User {
   recvMessages           DirectMessage[]         @relation("recipient")
   blocking               UserBlock[]             @relation("blocker")
   blockedBy              UserBlock[]             @relation("blocked")
+  sellerApplication      SellerApplication?      @relation("applicant")
+  reviewedApplications   SellerApplication[]     @relation("reviewer")
 }
 
 /// A person blocked another. Neither sees the other's videos, comments or chat, and they can't interact.
@@ -147,6 +149,78 @@ model SellerAccount {
   aiBillingCharges AiBillingCharge[]
   shippingProfile  SellerShippingProfile?
   ledger           SellerLedgerEntry[]
+}
+
+enum SellerApplicationStatus {
+  /// Started but not sent: the applicant is still filling it in or setting up payouts.
+  DRAFT
+  /// Sent and waiting in the admin queue.
+  SUBMITTED
+  /// Staff asked the applicant for more information. They edit and send it again.
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+}
+
+enum SellerBusinessType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+/**
+ * A person's request to sell on Haven. Anyone can shop; selling and going live need an approved
+ * application. Approving it creates the SellerAccount (status APPROVED) and the storefront.
+ * Identity and tax numbers (SSN, EIN) are collected by Stripe during payout setup, never stored here.
+ */
+model SellerApplication {
+  id     String                  @id @default(cuid())
+  userId String                  @unique
+  user   User                    @relation("applicant", fields: [userId], references: [id], onDelete: Cascade)
+  status SellerApplicationStatus @default(DRAFT)
+
+  // Identity and contact
+  legalName   String
+  phone       String
+  dateOfBirth DateTime?
+  /// { line1, line2?, city, region, postalCode, country }
+  address     Json
+
+  // Business and tax
+  businessType SellerBusinessType @default(INDIVIDUAL)
+  businessName String
+  /// Requested store address, e.g. "sunny-thrift". Reserved only once approved.
+  storeSlug    String
+  storeName    String
+
+  // What they sell
+  categories      String[]
+  description     String
+  /// e.g. "1-25", "26-100", "100+"
+  inventorySize   String?
+  experience      String?
+  socialLinks     String[]
+  sampleImageUrls String[]
+
+  // Seller terms
+  termsVersion    String?
+  termsAcceptedAt DateTime?
+
+  // Payouts (Stripe Connect Express)
+  stripeAccountId    String? @unique
+  payoutsDetailsDone Boolean @default(false)
+  payoutsEnabled     Boolean @default(false)
+
+  // Review
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewerId   String?
+  reviewer     User?     @relation("reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  /// Reason for a rejection, or the question when staff ask for more information. The applicant sees it.
+  decisionNote String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, submittedAt])
 }
 
 model SellerStaff {
