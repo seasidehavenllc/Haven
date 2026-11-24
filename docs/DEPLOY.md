@@ -68,7 +68,29 @@ GitHub → Haven → **Settings → Secrets and variables → Actions → Variab
 Then **Actions → Deploy website to GitHub Pages → Run workflow**. The demo banner disappears and the site
 uses the real server. The same variable turns on the keep-awake ping.
 
-## 5. Later, as you add accounts
+## 5. Keys (Render → haven-api → Environment)
+
+Add each key, then **Save, rebuild, and deploy**. Everything is optional except the database and storage; a
+feature without its key says what it needs instead of breaking.
+
+| Render variable | What to paste | Where it comes from |
+| --- | --- | --- |
+| `AI_PROVIDER` | `gemini` (already set by the Blueprint) | Switch to `anthropic` later; no code change |
+| `GEMINI_API_KEY` | the key | aistudio.google.com → **Get API key** (free tier, no card) |
+| `ANTHROPIC_API_KEY` | later, when you switch | console.anthropic.com → API keys |
+| `LIVEKIT_URL` | `wss://….livekit.cloud` | LiveKit Cloud → project → Settings → Keys |
+| `LIVEKIT_API_KEY` | API key | same page |
+| `LIVEKIT_API_SECRET` | API secret | same page |
+| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe (test mode) → Developers → API keys |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Stripe → Developers → Webhooks → Add endpoint `https://api.seasidehavenllc.com/webhooks/stripe`, events `payment_intent.succeeded` and `payment_intent.payment_failed`, then reveal the signing secret |
+| `ELEVENLABS_API_KEY` | the key | elevenlabs.io → Developers → API keys. Then turn on **ElevenLabs** in Haven's Admin → AI providers |
+| `SHIPPO_API_KEY` | `shippo_test_…` | Shippo → Settings → API → test token |
+| `SHIPPING_WEBHOOK_TOKEN` | any long random text you make up | Then in Shippo → Webhooks add `https://api.seasidehavenllc.com/webhooks/shipping/shippo?token=<that text>` (event `track_updated`) |
+
+On the free Gemini tier Google may use prompts to improve its products, and limits are small (check
+aistudio.google.com/rate-limit). Moving to a paid Gemini plan or to Anthropic removes both.
+
+## 6. Later, as you add accounts
 
 Add each key in Render (service → Environment), then redeploy. The full list is in `apps/api/.env.example`;
 `docs/FOR-KODY.md` says what each one turns on. Domain-specific settings:
