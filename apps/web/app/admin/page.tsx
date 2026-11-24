@@ -19,7 +19,7 @@ export default function Admin() {
   return (
     <div className="space-y-6">
       <h1 className="font-display text-3xl font-bold">Platform control</h1>
-      <nav className="flex gap-1 overflow-x-auto">
+      <nav className="flex flex-wrap gap-1">
         {TABS.map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${tab === t ? "bg-brand text-brand-ink" : "hover:bg-card"}`}>
             {t}
@@ -147,21 +147,66 @@ function Table({ title, rows, cols }: { title: string; rows: any[]; cols: [strin
   return (
     <div className="panel p-4">
       <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      {rows.length ? (
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-muted">
-            <tr>{cols.map(([k, l]) => <th key={k} className="py-1">{l}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {rows.map((r, i) => (
-              <tr key={i}>{cols.map(([k, , f]) => <td key={k} className="py-1.5">{f ? f(r[k]) : r[k] ?? "—"}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-sm text-muted">No data in this window.</p>
-      )}
+      {rows.length ? <Rows rows={rows.map((r) => cols.map(([k, , f]) => (f ? f(r[k]) : (r[k] ?? "—"))))} heads={cols.map(([, l]) => l)} /> : <p className="text-sm text-muted">No data in this window.</p>}
     </div>
+  );
+}
+
+/** A table on wide screens; on phones each row becomes a small card of "label: value" lines, so nothing runs off screen. */
+function Rows({ heads, rows }: { heads: string[]; rows: React.ReactNode[][] }) {
+  return (
+    <>
+      <table className="hidden w-full text-left text-sm sm:table">
+        <thead className="text-xs text-muted">
+          <tr>{heads.map((h) => <th key={h} className="py-1 pr-3 font-medium">{h}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {rows.map((r, i) => (
+            <tr key={i}>{r.map((c, j) => <td key={j} className="break-words py-1.5 pr-3">{c}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="divide-y divide-line sm:hidden">
+        {rows.map((r, i) => (
+          <dl key={i} className="space-y-1 py-2 text-sm">
+            {r.map((c, j) => (
+              <div key={j} className="flex items-center justify-between gap-3">
+                <dt className="shrink-0 text-xs text-muted">{heads[j]}</dt>
+                <dd className="min-w-0 break-words text-right">{c}</dd>
+              </div>
+            ))}
+          </dl>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const NAMES: Record<string, string> = {
+  LLM_TEXT: "Text",
+  LLM_AGENT: "Live host",
+  VISION_PRODUCT_ID: "Photo scan",
+  SPEECH_TO_TEXT: "Speech to text",
+  TEXT_TO_SPEECH: "Voice",
+  AVATAR_VIDEO: "Avatar video",
+  TTS_CHARACTERS: "Voice (per 1k characters)",
+  COHOST_MINUTE: "AI co-host minute",
+  AI_HOST_MINUTE: "AI host minute",
+};
+const label = (k: string) => NAMES[k] ?? k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, " ");
+
+function Toggle({ on, onChange, label: l }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={l}
+      onClick={() => onChange(!on)}
+      className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${on ? "bg-brand" : "bg-line"}`}
+    >
+      <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition ${on ? "translate-x-7" : "translate-x-1"}`} />
+    </button>
   );
 }
 
@@ -176,15 +221,29 @@ function Providers() {
       <ErrorNote error={err} />
       <div className="grid gap-3 md:grid-cols-2">
         {p.data?.map((x) => (
-          <div key={x.id} className="panel space-y-2 p-4 text-sm">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold">{x.name}</div>
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={x.enabled} onChange={(e) => api(`/admin/ai/providers/${x.id}`, { method: "PATCH", body: { enabled: e.target.checked } }).then(p.reload).catch(setErr)} /> enabled
-              </label>
+          <div key={x.id} className="panel min-w-0 space-y-2 break-words p-4 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 font-semibold">{x.name}</div>
+              <div className="flex items-center gap-2 text-xs text-muted">
+                {x.enabled ? "On" : "Off"}
+                <Toggle
+                  on={x.enabled}
+                  label={`${x.name} enabled`}
+                  onChange={(v) => {
+                    setErr(null);
+                    p.setData((d: any[] | null) => d && d.map((y) => (y.id === x.id ? { ...y, enabled: v } : y)));
+                    api(`/admin/ai/providers/${x.id}`, { method: "PATCH", body: { enabled: v } })
+                      .then(p.reload)
+                      .catch((e) => {
+                        setErr(e);
+                        p.reload();
+                      });
+                  }}
+                />
+              </div>
             </div>
             <div className="text-xs">
-              <code>{x.credentialEnvVar}</code>: {x.credentialConfigured ? <span className="text-ok">set</span> : <span className="text-live">missing</span>} · adapter {x.adapterAvailable ? <span className="text-ok">ready</span> : <span className="text-warn">planned</span>}
+              <code className="break-all">{x.credentialEnvVar}</code>: {x.credentialConfigured ? <span className="text-ok">set</span> : <span className="text-live">missing</span>} · adapter {x.adapterAvailable ? <span className="text-ok">ready</span> : <span className="text-warn">planned</span>}
             </div>
             <div className="text-xs text-muted">
               This month: {x.month.calls} calls · {x.month.failures} failures · {usd(x.month.costUsd, 4)}
@@ -192,10 +251,14 @@ function Providers() {
               {x.monthlySpendLimitUsd != null && ` · limit ${usd(x.monthlySpendLimitUsd)}`}
             </div>
             {!!x.models.length && (
-              <ul className="text-xs">
+              <ul className="space-y-1 text-xs">
                 {x.models.map((m: any) => (
-                  <li key={m.id}>
-                    {m.modelId} · {m.capability} · ${(m.inputCostMicrosPerMTok / 1e6).toFixed(2)} in / ${(m.outputCostMicrosPerMTok / 1e6).toFixed(2)} out per M tokens
+                  <li key={m.id} className="rounded-lg bg-paper/60 px-2 py-1">
+                    <span className="break-all font-medium">{m.modelId}</span>
+                    <span className="text-muted">
+                      {" "}· {label(m.capability)} ·{" "}
+                      {m.unitName ? `$${(m.unitCostMicros / 1e6).toFixed(3)} per ${m.unitName}` : `$${(m.inputCostMicrosPerMTok / 1e6).toFixed(2)} in / $${(m.outputCostMicrosPerMTok / 1e6).toFixed(2)} out per M tokens`}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -205,32 +268,32 @@ function Providers() {
       </div>
       <div className="panel p-4">
         <h3 className="mb-2 text-sm font-semibold">Routing (tried in priority order, with fallback)</h3>
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-muted">
-            <tr>
-              <th>Feature</th>
-              <th>Model</th>
-              <th>Priority</th>
-              <th>Min plan tier</th>
-              <th>On</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {r.data?.map((x) => (
-              <tr key={x.id}>
-                <td className="py-1.5">{x.feature}</td>
-                <td>
-                  {x.model?.provider.key}/{x.model?.modelId}
-                </td>
-                <td>{x.priority}</td>
-                <td>{x.minPlanTier}</td>
-                <td>
-                  <input type="checkbox" checked={x.enabled} onChange={(e) => api(`/admin/ai/routing/${x.id}`, { method: "PATCH", body: { enabled: e.target.checked } }).then(r.reload).catch(setErr)} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Rows
+          heads={["Feature", "Model", "Priority", "Min plan tier", "On"]}
+          rows={(r.data ?? []).map((x) => [
+            label(x.feature),
+            <span key="m" className="break-all">
+              {x.model?.provider.key}/{x.model?.modelId}
+            </span>,
+            x.priority,
+            x.minPlanTier,
+            <Toggle
+              key="t"
+              on={x.enabled}
+              label={`${x.feature} via ${x.model?.modelId}`}
+              onChange={(v) => {
+                setErr(null);
+                r.setData((d: any[] | null) => d && d.map((y) => (y.id === x.id ? { ...y, enabled: v } : y)));
+                api(`/admin/ai/routing/${x.id}`, { method: "PATCH", body: { enabled: v } })
+                  .then(r.reload)
+                  .catch((e) => {
+                    setErr(e);
+                    r.reload();
+                  });
+              }}
+            />,
+          ])}
+        />
       </div>
     </div>
   );
@@ -250,7 +313,7 @@ function Plans() {
       </div>
       <div className="panel p-4">
         <h3 className="mb-2 text-sm font-semibold">Credit cost per feature</h3>
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {data.featurePrices.map((f: any) => (
             <FeaturePrice key={f.feature} f={f} onSave={(credits) => api(`/admin/ai/feature-prices/${f.feature}`, { method: "PUT", body: { creditsPerUnit: credits, unitName: f.unitName } }).then(reload).catch(setErr)} />
           ))}
@@ -286,11 +349,11 @@ function PlanEditor({ plan, onSave }: { plan: any; onSave: (b: any) => void }) {
 function FeaturePrice({ f, onSave }: { f: any; onSave: (c: number) => void }) {
   const [v, setV] = useState(String(f.creditsPerUnit));
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="flex-1">{f.feature}</span>
-      <input className="input w-20" value={v} onChange={(e) => setV(e.target.value.replace(/\D/g, ""))} />
-      <span className="w-24 text-xs text-muted">/ {f.unitName}</span>
-      <button className="text-xs text-brand" onClick={() => onSave(Number(v))}>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-line p-2 text-sm">
+      <span className="w-full font-medium">{label(f.feature)}</span>
+      <input className="input w-20" inputMode="numeric" value={v} onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ""))} aria-label={`Credits for ${label(f.feature)}`} />
+      <span className="min-w-0 flex-1 text-xs text-muted">credits / {f.unitName}</span>
+      <button className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onSave(Number(v))}>
         Save
       </button>
     </div>
@@ -309,14 +372,14 @@ function Users() {
         <div className="divide-y divide-line rounded-2xl border border-line bg-card text-sm">
           {data?.map((u) => (
             <div key={u.id} className="flex flex-wrap items-center gap-3 p-3">
-              <div className="flex-1">
-                <b>@{u.handle}</b> <span className="text-muted">{u.email}</span>
+              <div className="min-w-0 flex-1 break-words">
+                <b>@{u.handle}</b> <span className="break-all text-muted">{u.email}</span>
                 <div className="text-xs text-muted">
                   {u.roles.join(", ")}
                   {u.seller && ` · seller: ${u.seller.businessName} (${u.seller.status.toLowerCase()})`}
                 </div>
               </div>
-              <select className="input w-36" value={u.status} onChange={(e) => api(`/admin/users/${u.id}`, { method: "PATCH", body: { status: e.target.value } }).then(reload)}>
+              <select className="input w-full sm:w-36" value={u.status} onChange={(e) => api(`/admin/users/${u.id}`, { method: "PATCH", body: { status: e.target.value } }).then(reload)}>
                 {["ACTIVE", "SUSPENDED", "BANNED"].map((s) => (
                   <option key={s}>{s}</option>
                 ))}

@@ -52,7 +52,7 @@ export function Nav() {
                 Cart
               </Link>
               {isSeller ? (
-                <Link href="/seller" className="btn-primary">
+                <Link href="/seller" className="btn-primary hidden sm:inline-flex">
                   Studio
                 </Link>
               ) : (
