@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import type { Server as HttpServer } from "node:http";
 import { verifyAccessToken } from "./lib/auth";
 import { env } from "./env";
+import { prisma } from "./db";
 
 /**
  * Realtime fan-out. Clients only *subscribe* over sockets; every mutation goes through
@@ -10,6 +11,9 @@ import { env } from "./env";
  */
 let io: Server | null = null;
 const viewers = new Map<string, Set<string>>(); // streamId -> socket ids
+/** When each signed-in viewer was last announced in a show, so reconnects don't spam "joined" lines. */
+const announced = new Map<string, number>(); // `${streamId}:${userId}` -> ms
+const ANNOUNCE_EVERY_MS = 10 * 60_000;
 
 export function initRealtime(server: HttpServer) {
   io = new Server(server, { cors: { origin: env.WEB_ORIGIN.split(",").map((o) => o.trim()), credentials: true } });
@@ -34,6 +38,7 @@ export function initRealtime(server: HttpServer) {
         if (!viewers.has(id)) viewers.set(id, new Set());
         viewers.get(id)!.add(socket.id);
         emit(room, "stream:viewers", { streamId: id, count: viewers.get(id)!.size });
+        if (socket.data.userId) void announceJoin(id, socket.data.userId as string);
       }
     });
     socket.on("unsubscribe", (room: unknown) => {
@@ -46,6 +51,21 @@ export function initRealtime(server: HttpServer) {
     });
   });
   return io;
+}
+
+/** "Maya joined" in the show's chat. Only signed-in viewers are named; the app hides people the viewer blocked. */
+async function announceJoin(streamId: string, userId: string) {
+  const key = `${streamId}:${userId}`;
+  const now = Date.now();
+  if (now - (announced.get(key) ?? 0) < ANNOUNCE_EVERY_MS) return;
+  announced.set(key, now);
+  if (announced.size > 50_000) for (const [k, t] of announced) if (now - t > ANNOUNCE_EVERY_MS) announced.delete(k);
+  try {
+    const u = await prisma.user.findUnique({ where: { id: userId }, select: { handle: true, displayName: true } });
+    if (u) emit(`stream:${streamId}`, "stream:joined", { streamId, userId, handle: u.handle, displayName: u.displayName });
+  } catch {
+    /* a missed join line is harmless */
+  }
 }
 
 function leaveStream(room: string, sid: string) {

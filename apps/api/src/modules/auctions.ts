@@ -62,7 +62,7 @@ export async function placeBid(auctionId: string, bidderId: string, amountCents:
     return { bid, auction: updated, outbid };
   });
   emit(`auction:${auctionId}`, "auction:bid", { auctionId, amountCents, bidId: res.bid.id, endsAt: res.auction.endsAt, bidderId });
-  if (res.auction.streamId) emit(`stream:${res.auction.streamId}`, "auction:bid", { auctionId, amountCents, endsAt: res.auction.endsAt });
+  if (res.auction.streamId) emit(`stream:${res.auction.streamId}`, "auction:bid", { auctionId, amountCents, endsAt: res.auction.endsAt, bidderId });
   void deliver(res.outbid);
   return { bid: res.bid, replay: false };
 }
@@ -81,6 +81,7 @@ export async function closeDueAuctions() {
     });
     if (!closed) continue;
     emit(`auction:${id}`, "auction:closed", { auctionId: id, winnerId: closed.winnerId, priceCents: closed.currentPriceCents, reserveMet: closed.reserveMet });
+    if (closed.streamId) emit(`stream:${closed.streamId}`, "auction:closed", { auctionId: id, winnerId: closed.winnerId, priceCents: closed.currentPriceCents, reserveMet: closed.reserveMet });
     if (closed.winnerId)
       await notify({ userId: closed.winnerId, type: "auction.won", title: "You won an auction", body: `Complete checkout for ${formatMoney(closed.currentPriceCents ?? 0)}`, link: `/auctions/${id}`, data: { auctionId: id } });
   }
@@ -97,7 +98,7 @@ export async function auctionRoutes(app: FastifyInstance) {
     if (input.reservePriceCents && input.reservePriceCents < input.startingPriceCents) throw badRequest("Reserve must be at or above the starting price");
     if (input.streamId && !(await prisma.livestream.findFirst({ where: { id: input.streamId, sellerId: seller.id } }))) throw badRequest("Unknown stream");
     const startsAt = input.startsAt ? new Date(input.startsAt) : new Date();
-    return prisma.auction.create({
+    const created = await prisma.auction.create({
       data: {
         sellerId: seller.id,
         productId: p.id,
@@ -110,6 +111,9 @@ export async function auctionRoutes(app: FastifyInstance) {
         status: startsAt <= new Date() ? "LIVE" : "SCHEDULED",
       },
     });
+    // Viewers of the show see the new auction card straight away.
+    if (created.streamId) emit(`stream:${created.streamId}`, "stream:auction", { streamId: created.streamId, auctionId: created.id });
+    return created;
   });
 
   app.get("/auctions", async () =>
