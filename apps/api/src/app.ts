@@ -39,6 +39,8 @@ export async function buildApp() {
     logger: env.NODE_ENV === "test" ? false : { level: "info", redact: ["req.headers.authorization"] },
     bodyLimit: 1024 * 1024,
     trustProxy: true,
+    // "https://api…//auth/login" (a base URL saved with a trailing slash) still reaches /auth/login.
+    routerOptions: { ignoreDuplicateSlashes: true, ignoreTrailingSlash: true },
   });
 
   await app.register(cors, { origin: env.WEB_ORIGIN.split(",").map((o) => o.trim()), credentials: true });

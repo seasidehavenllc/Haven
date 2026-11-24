@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000";
+/** The server's base URL, without trailing slashes, so `${API_URL}/auth/login` never becomes "//auth/login". */
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL?.trim() || "http://localhost:4000").replace(/\/+$/, "");
 
 type Tokens = { accessToken: string; refreshToken?: string };
 const KEY = "haven.auth";
