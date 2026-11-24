@@ -15,4 +15,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - run: curl --fail --silent --show-error --max-time 90 --retry 2 "${{ vars.HAVEN_API_URL }}/health"
+      - run: url="${{ vars.HAVEN_API_URL }}"; curl --fail --silent --show-error --max-time 90 --retry 2 "${url%/}/health"
