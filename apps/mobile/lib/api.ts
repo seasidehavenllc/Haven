@@ -59,11 +59,22 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   const token = await accessToken();
   if (token) headers.authorization = `Bearer ${token}`;
   if (init.body !== undefined) headers["content-type"] = "application/json";
-  const res = await fetch(`${API_URL}${path}`, {
-    method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
-    headers,
-    body: init.form ?? (init.body !== undefined ? JSON.stringify(init.body) : undefined),
-  });
+  // Give up after a while instead of spinning forever. Uploads (form) get longer.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), init.form ? 120_000 : 30_000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
+      headers,
+      body: init.form ?? (init.body !== undefined ? JSON.stringify(init.body) : undefined),
+      signal: ctrl.signal,
+    });
+  } catch (e: any) {
+    throw new Error(e?.name === "AbortError" ? "Network request timed out" : (e?.message ?? "Network request failed"));
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401 && retry && (await refresh())) return api<T>(path, init, false);
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;

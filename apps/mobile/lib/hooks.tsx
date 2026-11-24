@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { io, type Socket } from "socket.io-client";
-import { api, accessToken, API_URL, onAuthChange } from "./api";
+import { api, accessToken, API_URL, ApiError, onAuthChange } from "./api";
 
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -34,30 +34,39 @@ export type Me = {
 
 type MeState = {
   me: Me | null;
+  /** True once we know whether someone is signed in. */
   ready: boolean;
+  /** Set when a saved sign-in couldn't be checked because the server didn't answer (not when it was rejected). */
+  offline: Error | null;
   reload: () => Promise<void>;
-  /** Signed-out people see the login screen first. "Browse without an account" sets this for the session. */
-  guest: boolean;
-  setGuest: (g: boolean) => void;
 };
-const MeCtx = createContext<MeState>({ me: null, ready: false, reload: async () => {}, guest: false, setGuest: () => {} });
+const MeCtx = createContext<MeState>({ me: null, ready: false, offline: null, reload: async () => {} });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
-  const [guest, setGuest] = useState(false);
+  const [offline, setOffline] = useState<Error | null>(null);
   const load = useCallback(async () => {
     if (!(await accessToken())) {
       setMe(null);
+      setOffline(null);
       setReady(true);
       return;
     }
     try {
       setMe(await api<Me>("/me"));
-    } catch {
-      setMe(null);
-    } finally {
+      setOffline(null);
       setReady(true);
+    } catch (e) {
+      // A rejected sign-in (401/403) means signed out. Anything else (no connection, server waking up)
+      // keeps the saved sign-in and lets the splash screen offer a retry instead of a login form.
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setMe(null);
+        setOffline(null);
+        setReady(true);
+      } else {
+        setOffline(e as Error);
+      }
     }
     resetSocket();
   }, []);
@@ -65,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     load();
     return onAuthChange(() => void load());
   }, [load]);
-  return <MeCtx.Provider value={{ me, ready, reload: load, guest, setGuest }}>{children}</MeCtx.Provider>;
+  return <MeCtx.Provider value={{ me, ready, offline, reload: load }}>{children}</MeCtx.Provider>;
 }
 export const useMe = () => useContext(MeCtx);
 

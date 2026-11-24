@@ -1,4 +1,4 @@
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import { Image, Text, View } from "react-native";
 import { Avatar, Icon, type IconName, useColors } from "@/components/ui";
 import { Bell } from "@/components/Bell";
@@ -41,7 +41,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="account"
         options={{
-          title: me ? "Profile" : "Sign in",
+          title: "Profile",
           tabBarIcon: ({ color, focused, size }) =>
             me ? (
               <View style={{ borderRadius: 999, borderWidth: 2, borderColor: focused ? c.brandLight : "transparent", padding: 1 }}>
@@ -50,15 +50,6 @@ export default function TabsLayout() {
             ) : (
               <Icon name={focused ? "person-circle" : "person-circle-outline"} size={size} color={color} />
             ),
-        }}
-        listeners={{
-          tabPress: (e) => {
-            // Signed out: open the full-screen login instead of a tab.
-            if (!me) {
-              e.preventDefault();
-              router.push("/login");
-            }
-          },
         }}
       />
     </Tabs>
