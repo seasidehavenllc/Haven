@@ -26,8 +26,8 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   }, [ready, me, router]);
   if (!ready || !me?.seller) return <Loading />;
   return (
-    <div className="grid gap-6 md:grid-cols-[210px_1fr]">
-      <aside className="space-y-1">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[210px_1fr]">
+      <aside className="min-w-0 space-y-1">
         <div className="mb-3 px-3">
           <div className="font-display text-lg font-bold">{me.seller.businessName}</div>
           {me.seller.storefront && (
@@ -36,7 +36,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
             </Link>
           )}
         </div>
-        <nav className="flex gap-1 overflow-x-auto md:flex-col">
+        <nav className="flex flex-wrap gap-1 md:flex-col md:flex-nowrap">
           {tabs.map(([href, label]) => {
             const active = href === "/seller" ? path === href : path === href || path.startsWith(`${href}/`);
             return (
