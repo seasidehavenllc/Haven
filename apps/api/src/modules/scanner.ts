@@ -104,7 +104,7 @@ async function comparables(categorySlug: string | null, brand: string | null) {
 }
 
 /** Analyze one scan (images already stored). Charges PRODUCT_SCAN credits via the AI gateway. */
-export async function analyzeScan(scanId: string, images: { mime: string; bytes: Buffer }[], userId: string) {
+export async function analyzeScan(scanId: string, images: { mime: string; bytes: Buffer }[], userId: string, sellerSaid?: string) {
   const scan = await prisma.productScan.findUniqueOrThrow({ where: { id: scanId } });
   await prisma.productScan.update({ where: { id: scanId }, data: { status: "ANALYZING" } });
   try {
@@ -113,6 +113,7 @@ export async function analyzeScan(scanId: string, images: { mime: string; bytes:
     const prompt = [
       `Category slugs: ${cats.map((c) => c.slug).join(", ")}`,
       barcodeInfo?.found ? `Barcode ${scan.barcode} database match (seller must confirm it is the same item): ${JSON.stringify(barcodeInfo.item)}` : scan.barcode ? `Barcode ${scan.barcode}: no database match available.` : "",
+      sellerSaid ? `The seller described it live as: "${sellerSaid.slice(0, 500)}". Treat this as the seller's own statement (it may name the brand, size or condition); don't add anything beyond it and the photos.` : "",
       `There are ${images.length} photo(s). Produce the listing JSON.`,
     ].filter(Boolean).join("\n");
 

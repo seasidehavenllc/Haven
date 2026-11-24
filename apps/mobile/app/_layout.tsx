@@ -47,7 +47,7 @@ function AppStack() {
       <Stack.Protected guard={!!me}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "fade" }} />
         <Stack.Screen name="p/[id]" options={{ title: "" }} />
-        <Stack.Screen name="live/[id]" options={{ title: "Live" }} />
+        <Stack.Screen name="live/[id]" options={{ title: "Live", headerShown: false, contentStyle: { backgroundColor: "#000" } }} />
         <Stack.Screen name="cart" options={{ title: "Cart" }} />
         <Stack.Screen name="scan/[id]" options={{ title: "Review listing" }} />
         <Stack.Screen name="studio/[id]" options={{ title: "Studio" }} />

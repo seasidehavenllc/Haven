@@ -12,6 +12,37 @@ import { videoProvider } from "../video";
 import { runText } from "../ai/gateway";
 import { randomUUID } from "node:crypto";
 import { notify, createNotifications, deliver } from "../notify";
+import { storeUpload } from "../storage";
+import { analyzeScan } from "./scanner";
+import { formatMoney } from "@haven/shared";
+
+/**
+ * Pull a price out of what the host said or typed: "$45", "45 dollars", "45.50 bucks", "price 45".
+ * Returns cents, or null when no price was said.
+ */
+export function priceFromSpeech(text: string): number | null {
+  const m =
+    text.match(/\$\s?(\d{1,6}(?:[.,]\d{1,2})?)/) ??
+    text.match(/(\d{1,6}(?:[.,]\d{1,2})?)\s*(?:dollars?|bucks?|usd)\b/i) ??
+    text.match(/\b(?:price|for|only|just)\s*(?:is\s*)?(\d{1,6}(?:[.,]\d{1,2})?)\b/i);
+  if (!m) return null;
+  const cents = Math.round(Number(m[1]!.replace(",", ".")) * 100);
+  return cents > 0 ? cents : null;
+}
+
+/** What's left of the host's words once the price is taken out, as a fallback title. */
+const titleFromSpeech = (text: string) =>
+  text
+    .replace(/\$\s?\d[\d.,]*/g, "")
+    .replace(/\b\d[\d.,]*\s*(?:dollars?|bucks?|usd)\b/gi, "")
+    .replace(/\b(?:price|for|only|just)\s*(?:is\s*)?\d[\d.,]*\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/[\s,.\-–]+$/, "")
+    .trim()
+    .slice(0, 160);
+
+/** Most hearts one request may carry. The app sends a batch about once a second while someone keeps tapping. */
+export const MAX_LIKE_BATCH = 50;
 
 const menuInclude = {
   products: {
@@ -116,10 +147,21 @@ export async function streamRoutes(app: FastifyInstance) {
     });
     if (!s) throw notFound("Stream");
     const isOwner = req.user?.sellerId === s.sellerId;
+    const pinnedMessage = s.pinnedMessageId
+      ? await prisma.streamChatMessage.findFirst({ where: { id: s.pinnedMessageId, hidden: false }, include: { user: { select: { handle: true, displayName: true } } } })
+      : null;
+    const mutes = isOwner
+      ? await prisma.streamMute.findMany({ where: { streamId: s.id }, select: { userId: true } })
+      : req.user
+        ? await prisma.streamMute.findMany({ where: { streamId: s.id, userId: req.user.id }, select: { userId: true } })
+        : [];
     return {
       ...s,
       products: isOwner ? s.products : s.products.filter((p) => !p.hidden),
       chat: s.chat.reverse(),
+      pinnedMessage,
+      /** The host sees everyone they muted in this show; a viewer only learns whether they are muted. */
+      ...(isOwner ? { mutedUserIds: mutes.map((m) => m.userId) } : { youAreMuted: mutes.length > 0 }),
       viewers: viewerCount(s.id),
       video: { provider: videoProvider.id, configured: videoProvider.configured() },
       /** Always shown to viewers when an AI is presenting or may speak. */
@@ -193,6 +235,91 @@ export async function streamRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /**
+   * Sell something new without leaving the show. The host snaps the item and says (or types) what it is and the price,
+   * e.g. "Vintage denim jacket, size M, $45". The listing goes into their shop, onto the show's item list, gets pinned
+   * as "showing now", and a line in chat tells viewers. With `ai` on and a photo, AI writes the title and description
+   * from the photo and the host's words; the price is always the one the host said.
+   * Multipart: photos (0–4 images), said (text), priceCents (overrides the spoken price), quantity, ai ("true"/"false").
+   */
+  app.post("/seller/streams/:id/quick-list", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req) => {
+    const { user, seller } = await requireSeller(req);
+    const s = await ownStream(seller.id, (req.params as any).id);
+    if (!["LIVE", "PAUSED", "SCHEDULED"].includes(s.status)) throw conflict("This show has ended");
+    const photos: { mime: string; bytes: Buffer; url: string; sha: string }[] = [];
+    const fields: Record<string, string> = {};
+    for await (const part of req.parts({ limits: { files: 4, fileSize: 15 * 1024 * 1024 } })) {
+      if (part.type === "file") {
+        const stored = await storeUpload(await part.toBuffer(), `scans/${seller.id}`);
+        if (!stored.mime.startsWith("image/")) throw badRequest("Photos only");
+        photos.push({ mime: stored.mime, bytes: stored.bytes, url: stored.url, sha: stored.sha256 });
+      } else if (typeof part.value === "string") fields[part.fieldname] = part.value;
+    }
+    const input = parse(
+      z.object({
+        said: z.string().trim().max(500).default(""),
+        priceCents: z.coerce.number().int().positive().max(100_000_00).optional(),
+        quantity: z.coerce.number().int().min(1).max(999).default(1),
+        ai: z.enum(["true", "false"]).default("true"),
+      }),
+      fields,
+    );
+    const priceCents = input.priceCents ?? priceFromSpeech(input.said);
+    if (!priceCents) throw badRequest('Say or type a price, like "$25"');
+
+    let listing = { title: titleFromSpeech(input.said), description: input.said, brand: null as string | null, model: null as string | null, categoryId: null as string | null, condition: null as string | null, tags: [] as string[] };
+    let aiNote: string | null = null;
+    let scanId: string | null = null;
+    if (input.ai === "true" && photos.length) {
+      const scan = await prisma.productScan.create({ data: { sellerId: seller.id, imageUrls: photos.map((p) => p.url), imageHash: photos[0]!.sha } });
+      scanId = scan.id;
+      try {
+        const done = await analyzeScan(scan.id, photos, user.id, input.said || undefined);
+        const d = done.draft as any;
+        if (done.status === "READY" && d) {
+          listing = { title: d.title || listing.title, description: d.description || listing.description, brand: d.brand, model: d.model, categoryId: d.categoryId, condition: d.condition, tags: d.tags ?? [] };
+        } else aiNote = "AI couldn't read the photo, so the listing uses your words. You can edit it after the show.";
+      } catch (e: any) {
+        aiNote = e?.status === 402 ? "Out of AI credits, so the listing uses your words." : "AI wasn't available, so the listing uses your words.";
+      }
+    }
+    if (listing.title.length < 3) listing.title = `Live item ${new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+
+    const product = await prisma.$transaction(async (tx) => {
+      const p = await tx.product.create({
+        data: {
+          sellerId: seller.id,
+          title: listing.title.slice(0, 160),
+          description: listing.description.slice(0, 10000),
+          categoryId: listing.categoryId,
+          brand: listing.brand,
+          model: listing.model,
+          condition: (listing.condition as any) ?? "GOOD",
+          tags: listing.tags.slice(0, 30),
+          liveMenuEnabled: true,
+          sourceScanId: scanId,
+          variants: { create: [{ name: "Default", priceCents, quantity: input.quantity }] },
+          media: { create: photos.map((ph, i) => ({ url: ph.url, position: i })) },
+        },
+        include: { variants: true, media: true },
+      });
+      await tx.inventoryEvent.create({ data: { variantId: p.variants[0]!.id, delta: input.quantity, reason: "RESTOCK", refId: scanId ?? s.id } });
+      if (scanId) await tx.productScan.update({ where: { id: scanId }, data: { status: "PUBLISHED" } });
+      const position = await tx.streamProduct.count({ where: { streamId: s.id } });
+      await tx.streamProduct.create({ data: { streamId: s.id, productId: p.id, position } });
+      await tx.livestream.update({ where: { id: s.id }, data: { pinnedProductId: p.id } });
+      return p;
+    });
+    const line = await prisma.streamChatMessage.create({
+      data: { streamId: s.id, userId: seller.userId, body: `New item: ${product.title} for ${formatMoney(priceCents)}${input.quantity > 1 ? ` (${input.quantity} available)` : ""}. Tap Buy.` },
+      include: { user: { select: { handle: true, displayName: true } } },
+    });
+    emit(`stream:${s.id}`, "stream:menu", { streamId: s.id, added: product.id });
+    emit(`stream:${s.id}`, "stream:pinned", { streamId: s.id, productId: product.id });
+    emit(`stream:${s.id}`, "stream:chat", line);
+    return { product, aiNote };
+  });
+
   app.post("/seller/streams/:id/pin", async (req) => {
     const { seller } = await requireSeller(req);
     const s = await ownStream(seller.id, (req.params as any).id);
@@ -203,6 +330,18 @@ export async function streamRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ── Hearts ──
+  /** Viewers tap the heart; the app sends taps in small batches. Anyone may tap, signed in or not. */
+  app.post("/streams/:id/likes", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req) => {
+    const { count } = parse(z.object({ count: z.number().int().min(1).max(MAX_LIKE_BATCH) }), req.body ?? {});
+    const s = await prisma.livestream.findUnique({ where: { id: (req.params as any).id }, select: { id: true, status: true } });
+    if (!s) throw notFound("Stream");
+    if (s.status !== "LIVE") throw conflict("Hearts open when the show is live");
+    const updated = await prisma.livestream.update({ where: { id: s.id }, data: { likeCount: { increment: count } }, select: { likeCount: true } });
+    emit(`stream:${s.id}`, "stream:likes", { streamId: s.id, total: updated.likeCount, added: count, userId: req.user?.id ?? null });
+    return { total: updated.likeCount };
+  });
+
   // ── Chat ──
   app.post("/streams/:id/chat", { config: { rateLimit: { max: 20, timeWindow: "30 seconds" } } }, async (req) => {
     const u = requireUser(req);
@@ -211,6 +350,7 @@ export async function streamRoutes(app: FastifyInstance) {
     if (!s || !["LIVE", "PAUSED"].includes(s.status)) throw conflict("Chat is closed");
     const host = await prisma.sellerAccount.findUniqueOrThrow({ where: { id: s.sellerId }, select: { userId: true } });
     if (await isBlockedBetween(u.id, host.userId)) throw forbidden("You can't chat in this stream");
+    if (await prisma.streamMute.findUnique({ where: { streamId_userId: { streamId: s.id, userId: u.id } } })) throw forbidden("The host muted you in this show. You can still watch and buy.");
     const msg = await prisma.streamChatMessage.create({ data: { streamId: s.id, userId: u.id, body }, include: { user: { select: { handle: true, displayName: true } } } });
     emit(`stream:${s.id}`, "stream:chat", msg);
     return msg;
@@ -219,8 +359,57 @@ export async function streamRoutes(app: FastifyInstance) {
   app.post("/seller/streams/:id/chat/:msgId/hide", async (req) => {
     const { seller } = await requireSeller(req);
     const s = await ownStream(seller.id, (req.params as any).id);
-    await prisma.streamChatMessage.updateMany({ where: { id: (req.params as any).msgId, streamId: s.id }, data: { hidden: true } });
-    emit(`stream:${s.id}`, "stream:chat", { id: (req.params as any).msgId, hidden: true });
+    const msgId = (req.params as any).msgId as string;
+    await prisma.streamChatMessage.updateMany({ where: { id: msgId, streamId: s.id }, data: { hidden: true } });
+    emit(`stream:${s.id}`, "stream:chat", { id: msgId, hidden: true });
+    if (s.pinnedMessageId === msgId) {
+      await prisma.livestream.update({ where: { id: s.id }, data: { pinnedMessageId: null } });
+      emit(`stream:${s.id}`, "stream:pinnedMessage", { streamId: s.id, message: null });
+    }
+    return { ok: true };
+  });
+
+  /** Pin one chat message to the top of the show for everyone, or clear it with null. */
+  app.post("/seller/streams/:id/pin-message", async (req) => {
+    const { seller } = await requireSeller(req);
+    const s = await ownStream(seller.id, (req.params as any).id);
+    const { messageId } = parse(z.object({ messageId: z.string().nullable() }), req.body);
+    const message = messageId
+      ? await prisma.streamChatMessage.findFirst({ where: { id: messageId, streamId: s.id, hidden: false }, include: { user: { select: { handle: true, displayName: true } } } })
+      : null;
+    if (messageId && !message) throw notFound("Message");
+    await prisma.livestream.update({ where: { id: s.id }, data: { pinnedMessageId: message?.id ?? null } });
+    emit(`stream:${s.id}`, "stream:pinnedMessage", { streamId: s.id, message });
+    return { ok: true, message };
+  });
+
+  /** Mute a viewer in this show only. They keep watching and buying; their chat is closed and their messages are hidden. */
+  app.post("/seller/streams/:id/mutes", async (req) => {
+    const { seller } = await requireSeller(req);
+    const s = await ownStream(seller.id, (req.params as any).id);
+    const { userId, hideMessages } = parse(z.object({ userId: z.string(), hideMessages: z.boolean().default(true) }), req.body);
+    if (userId === seller.userId) throw badRequest("You can't mute yourself");
+    if (!(await prisma.user.findUnique({ where: { id: userId }, select: { id: true } }))) throw notFound("User");
+    await prisma.streamMute.upsert({ where: { streamId_userId: { streamId: s.id, userId } }, update: {}, create: { streamId: s.id, userId } });
+    if (hideMessages) {
+      const msgs = await prisma.streamChatMessage.findMany({ where: { streamId: s.id, userId, hidden: false }, select: { id: true } });
+      await prisma.streamChatMessage.updateMany({ where: { id: { in: msgs.map((m) => m.id) } }, data: { hidden: true } });
+      for (const m of msgs) emit(`stream:${s.id}`, "stream:chat", { id: m.id, hidden: true });
+      if (s.pinnedMessageId && msgs.some((m) => m.id === s.pinnedMessageId)) {
+        await prisma.livestream.update({ where: { id: s.id }, data: { pinnedMessageId: null } });
+        emit(`stream:${s.id}`, "stream:pinnedMessage", { streamId: s.id, message: null });
+      }
+    }
+    emit(`user:${userId}`, "stream:muted", { streamId: s.id, muted: true });
+    return { ok: true };
+  });
+
+  app.delete("/seller/streams/:id/mutes/:userId", async (req) => {
+    const { seller } = await requireSeller(req);
+    const s = await ownStream(seller.id, (req.params as any).id);
+    const userId = (req.params as any).userId as string;
+    await prisma.streamMute.deleteMany({ where: { streamId: s.id, userId } });
+    emit(`user:${userId}`, "stream:muted", { streamId: s.id, muted: false });
     return { ok: true };
   });
 

@@ -1,15 +1,18 @@
 import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useLocalParticipant, useRoomContext, useTracks } from "@livekit/react-native";
 import { Track } from "livekit-client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MutableRefObject } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { api } from "@/lib/api";
 import { Icon, T, friendlyError } from "./ui";
+
+/** Lets the studio turn the camera off for a moment (to snap a photo of an item) and back on. */
+export type HostCamera = { setCamera: (on: boolean) => Promise<void> };
 
 /**
  * Live video through LiveKit. The API hands out a join token for the show's room: the host's token can
  * publish camera and microphone, everyone else's can only watch. `host` turns on this phone's camera.
  */
-export function LiveVideo({ streamId, host = false }: { streamId: string; host?: boolean }) {
+export function LiveVideo({ streamId, host = false, cameraRef, controlsStyle }: { streamId: string; host?: boolean; cameraRef?: MutableRefObject<HostCamera | null>; controlsStyle?: object }) {
   const [join, setJoin] = useState<{ url: string; token: string } | null>(null);
   const [err, setErr] = useState<any>(null);
   const [attempt, setAttempt] = useState(0);
@@ -45,7 +48,7 @@ export function LiveVideo({ streamId, host = false }: { streamId: string; host?:
 
   return (
     <LiveKitRoom serverUrl={join.url} token={join.token} connect audio={host} video={host} options={{ adaptiveStream: { pixelDensity: "screen" } }} onError={setErr}>
-      {host ? <HostView /> : <ViewerView />}
+      {host ? <HostView cameraRef={cameraRef} controlsStyle={controlsStyle} /> : <ViewerView />}
     </LiveKitRoom>
   );
 }
@@ -69,9 +72,16 @@ function ViewerView() {
 }
 
 /** The host's own camera preview, with flip, mute and camera-off controls. */
-function HostView() {
+function HostView({ cameraRef, controlsStyle }: { cameraRef?: MutableRefObject<HostCamera | null>; controlsStyle?: object }) {
   const room = useRoomContext();
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
+  useEffect(() => {
+    if (!cameraRef) return;
+    cameraRef.current = { setCamera: async (on) => void (await localParticipant.setCameraEnabled(on)) };
+    return () => {
+      cameraRef.current = null;
+    };
+  }, [cameraRef, localParticipant]);
   const [front, setFront] = useState(true);
   const mine = useTracks([Track.Source.Camera]).filter(isTrackReference).find((t) => t.participant.isLocal);
 
@@ -92,7 +102,7 @@ function HostView() {
           <T color="#fff" size={13} style={{ opacity: 0.85 }}>{isCameraEnabled ? "Starting camera…" : "Camera is off"}</T>
         </Center>
       )}
-      <View style={{ position: "absolute", right: 10, bottom: 10, flexDirection: "row", gap: 8 }}>
+      <View style={[{ position: "absolute", right: 10, bottom: 10, flexDirection: "row", gap: 8 }, controlsStyle]}>
         <Round icon={isMicrophoneEnabled ? "mic" : "mic-off"} label={isMicrophoneEnabled ? "Mute microphone" : "Unmute microphone"} onPress={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)} />
         <Round icon={isCameraEnabled ? "videocam" : "videocam-off"} label={isCameraEnabled ? "Turn camera off" : "Turn camera on"} onPress={() => localParticipant.setCameraEnabled(!isCameraEnabled)} />
         <Round icon="camera-reverse" label="Flip camera" onPress={flip} disabled={!isCameraEnabled || room.state !== "connected"} />
