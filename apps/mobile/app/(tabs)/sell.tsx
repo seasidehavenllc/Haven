@@ -10,14 +10,8 @@ type Photo = { uri: string; mimeType?: string | null; fileName?: string | null }
 
 export default function Sell() {
   const { me, ready } = useMe();
-  if (!ready) return <Loading />;
-  if (!me)
-    return (
-      <View style={[s.screen, { flex: 1, justifyContent: "center" }]}>
-        <Empty title="Sell on Haven">Sign in or create an account, then open your store here. Snap a photo and AI drafts the listing for you.</Empty>
-        <Btn title="Sign in to start selling" onPress={() => router.push("/login")} />
-      </View>
-    );
+  // The app only shows the tabs to signed-in people (app/_layout.tsx).
+  if (!ready || !me) return <Loading />;
   return me.seller ? <SellerHome /> : <OpenStore />;
 }
 
