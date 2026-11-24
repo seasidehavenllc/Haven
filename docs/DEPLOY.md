@@ -102,6 +102,6 @@ Add each key in Render (service → Environment), then redeploy. The full list i
   `https://sales.seasidehavenllc.com/login`. Then set the repository variables `NEXT_PUBLIC_APPLE_SERVICES_ID` and
   `NEXT_PUBLIC_APPLE_REDIRECT_URI` (`https://sales.seasidehavenllc.com/login`).
 - **Email (Resend):** verify `seasidehavenllc.com` in Resend; it gives you 3–4 DNS records to add at your registrar.
-  Then `EMAIL_FROM` can be `Haven <hello@seasidehavenllc.com>`.
+  Then `EMAIL_FROM` can be `Haven <info@seasidehavenllc.com>`.
 - **Shipping tracking webhook:** `https://api.seasidehavenllc.com/webhooks/shipping/shippo?token=<SHIPPING_WEBHOOK_TOKEN>`.
 - **Phone app:** build it with `EXPO_PUBLIC_API_URL=https://api.seasidehavenllc.com`.
