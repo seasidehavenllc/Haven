@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, Switch, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useRealtime } from "@/lib/hooks";
+import { LiveVideo } from "@/components/LiveVideo";
 import { Btn, Chip, ErrorNote, Field, Loading, ModeBadge, Money, Notice, T, minPrice, s, stock, useColors } from "@/components/ui";
 
 const PRESETS = ["What's pinned and how many are left?", "Summarize the chat questions", "What should I show next?"];
@@ -63,6 +64,12 @@ export default function Studio() {
         <T size={13} color={c.muted}>{st.viewers} watching</T>
       </View>
       <T size={20} weight="700">{st.title}</T>
+      {st.video?.configured && st.status === "LIVE" && (
+        <View style={{ aspectRatio: 9 / 12, maxHeight: 460, borderRadius: 18, overflow: "hidden", backgroundColor: "#111" }}>
+          <LiveVideo streamId={st.id} host />
+        </View>
+      )}
+      {st.video?.configured && st.status === "SCHEDULED" && <T size={13} color={c.muted}>Your camera and microphone turn on when you go live.</T>}
       {st.video && !st.video.configured && <Notice>Video isn't connected on this server (LiveKit keys needed). Viewers can still chat and buy from your menu.</Notice>}
       <View style={{ flexDirection: "row", gap: 8 }}>
         {st.status === "SCHEDULED" && <Btn style={{ flex: 1 }} title="Go live" onPress={() => act("/start")} />}

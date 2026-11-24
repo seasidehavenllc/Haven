@@ -38,14 +38,8 @@ function BlockedPeople() {
 
 export default function Account() {
   const { me, ready } = useMe();
-  if (!ready) return <Loading />;
-  if (!me)
-    return (
-      <View style={[s.screen, { flex: 1, justifyContent: "center" }]}>
-        <Empty title="You're browsing as a guest">Sign in to see your orders, follow sellers and check out.</Empty>
-        <Btn title="Sign in or create account" onPress={() => router.push("/login")} />
-      </View>
-    );
+  // The app only shows the tabs to signed-in people (app/_layout.tsx).
+  if (!ready || !me) return <Loading />;
   return <Profile />;
 }
 
