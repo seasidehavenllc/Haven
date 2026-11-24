@@ -46,7 +46,7 @@ Apple rejects apps that miss these.
       Apple expects you to act on them **within 24 hours**, and the Terms promise that.
 - [x] **Privacy policy and terms:** sales.seasidehavenllc.com/privacy and /terms, linked in the app, at sign-up
       and in the site footer. Use the privacy URL in App Store Connect → App Privacy. The contact address on both
-      pages is hello@seasidehavenllc.com (set in `apps/web/lib/legal.ts`); make sure that inbox exists.
+      pages is info@seasidehavenllc.com (set in `apps/web/lib/legal.ts`) (confirmed by Kody).
 - [ ] Screenshots: 6.9-inch iPhone screenshots (1320 × 2868). Also iPad screenshots, because the app
       supports iPad. Take them in TestFlight on your phone.
 - [ ] App Store listing: subtitle, description, keywords, support URL, category (Shopping), and age
