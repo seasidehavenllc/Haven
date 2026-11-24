@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { api, accessToken, API_URL } from "./api";
+import { DEMO, demoJoin, demoOn } from "./demo";
 
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -83,6 +84,11 @@ export function useRealtime(room: string | null, handlers: Record<string, (p: an
   const ref = useRef(handlers);
   ref.current = handlers;
   useEffect(() => {
+    if (DEMO) {
+      const offs = Object.keys(ref.current).map((e) => demoOn(e, (p) => ref.current[e]?.(p)));
+      const leave = room ? demoJoin(room) : () => {};
+      return () => (offs.forEach((f) => f()), leave());
+    }
     const s = socket();
     const evts = Object.keys(ref.current);
     const fns = evts.map((e) => [e, (p: any) => ref.current[e]?.(p)] as const);

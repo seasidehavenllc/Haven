@@ -1,4 +1,5 @@
 "use client";
+import { DEMO, DEMO_TOKEN, demoApi } from "./demo";
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 type Tokens = { accessToken: string; refreshToken?: string };
@@ -27,6 +28,16 @@ export function clearTokens() {
 }
 export const accessToken = () => read()?.accessToken ?? null;
 
+// The demo starts signed in as the sample shopper (signing out and back in works too).
+if (DEMO && typeof window !== "undefined") {
+  try {
+    if (!sessionStorage.getItem("haven.demo.started")) {
+      sessionStorage.setItem("haven.demo.started", "1");
+      if (!read()) localStorage.setItem(KEY, JSON.stringify({ accessToken: DEMO_TOKEN, refreshToken: DEMO_TOKEN }));
+    }
+  } catch {}
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
     super(message);
@@ -51,6 +62,13 @@ async function refresh(): Promise<boolean> {
 }
 
 export async function api<T = any>(path: string, init: { method?: string; body?: unknown; form?: FormData } = {}, retry = true): Promise<T> {
+  if (DEMO) {
+    try {
+      return (await demoApi(path, init)) as T;
+    } catch (e: any) {
+      throw new ApiError(e.status ?? 500, e.code ?? "error", e.message ?? "Demo error");
+    }
+  }
   const headers: Record<string, string> = {};
   const token = accessToken();
   if (token) headers.authorization = `Bearer ${token}`;
