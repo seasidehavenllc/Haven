@@ -22,6 +22,8 @@ const Env = z.object({
     .optional()
     .transform((v) => v === "true"),
   STRIPE_SECRET_KEY: z.string().optional(),
+  /** Safe to share with browsers and phones. Must be the same mode (test/live) as STRIPE_SECRET_KEY. */
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   LIVEKIT_URL: z.string().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),

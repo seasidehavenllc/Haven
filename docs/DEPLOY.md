@@ -81,7 +81,8 @@ feature without its key says what it needs instead of breaking.
 | `LIVEKIT_URL` | `wss://….livekit.cloud` | LiveKit Cloud → project → Settings → Keys |
 | `LIVEKIT_API_KEY` | API key | same page |
 | `LIVEKIT_API_SECRET` | API secret | same page |
-| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe (test mode) → Developers → API keys |
+| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe (test mode) → Developers → API keys → Secret key |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` | Same page → Publishable key. Turns on the card form on the website and in the app. Must be the same mode (test or live) as the secret key |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Stripe → Developers → Webhooks → Add endpoint `https://api.seasidehavenllc.com/webhooks/stripe`, events `payment_intent.succeeded` and `payment_intent.payment_failed`, then reveal the signing secret |
 | `ELEVENLABS_API_KEY` | the key | elevenlabs.io → Developers → API keys. Then turn on **ElevenLabs** in Haven's Admin → AI providers |
 | `SHIPPO_API_KEY` | `shippo_test_…` | Shippo → Settings → API → test token |

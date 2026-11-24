@@ -10,6 +10,7 @@ import { broadcastInventory, productInclude } from "./catalog";
 import { createPaymentIntent, verifyStripeSignature } from "../payments";
 import { notify } from "../notify";
 import { shippingCharge } from "../shipping";
+import { completeCreditPackPayment } from "./billing";
 import { trackManualShipment } from "./shipping";
 
 type Line = { variantId: string; quantity: number; unitPriceCents?: number };
@@ -277,6 +278,11 @@ export async function commerceRoutes(app: FastifyInstance) {
       if (!verifyStripeSignature(raw, req.headers["stripe-signature"] as string, secret)) throw new HttpError(400, "bad_signature", "Invalid signature");
       const evt = JSON.parse(raw.toString("utf8"));
       const obj = evt.data?.object;
+      // Credit packs reuse checkoutId for their ledger key, so they must be handled before orders.
+      if (obj?.metadata?.aiCharge) {
+        if (evt.type === "payment_intent.succeeded") await completeCreditPackPayment(obj);
+        return { received: true };
+      }
       if (evt.type === "payment_intent.succeeded" && obj?.metadata?.checkoutId) await markCheckoutPaid(obj.metadata.checkoutId, obj.id, "stripe");
       if (evt.type === "payment_intent.payment_failed" && obj?.metadata?.checkoutId) await releaseCheckout(obj.metadata.checkoutId, "failed");
       return { received: true };

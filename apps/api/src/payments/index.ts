@@ -54,6 +54,18 @@ export async function createPaymentIntent(opts: { amountCents: number; currency:
   return { provider, providerRef: pi.id, clientSecret: pi.client_secret, settled: false };
 }
 
+/**
+ * The key the card form needs. Returned only when it pairs with the secret key: a pk_test key with
+ * an sk_live key (or the other way round) would show a form that can never charge.
+ */
+export function stripePublishableKey(): string | null {
+  const pk = process.env.STRIPE_PUBLISHABLE_KEY?.trim();
+  const sk = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!pk || !sk || !pk.startsWith("pk_")) return null;
+  const mode = (k: string) => (k.includes("_live_") ? "live" : "test");
+  return mode(pk) === mode(sk) ? pk : null;
+}
+
 /** Verify a Stripe webhook signature header against the raw body. */
 export function verifyStripeSignature(raw: Buffer, header: string | undefined, secret: string, toleranceSec = 300) {
   if (!header) return false;

@@ -22,15 +22,39 @@ const addPeriod = (d: Date, interval: string) => {
  * Collect money for an AI charge. Stripe Billing (recurring subscriptions) is wired in Phase 5;
  * today paid charges settle only through the clearly-labelled test provider outside production.
  */
-async function collectAiCharge(opts: { sellerId: string; amountCents: number; kind: "SUBSCRIPTION" | "CREDIT_PACK"; key: string; idempotencyKey: string }) {
+async function collectAiCharge(opts: { sellerId: string; amountCents: number; kind: "SUBSCRIPTION" | "CREDIT_PACK"; key: string; idempotencyKey: string; credits?: number }) {
   const provider = activePaymentProvider();
   if (provider === "stripe") {
     // One-off PaymentIntent for credit packs; subscription renewals will move to Stripe Billing.
-    const pi = await createPaymentIntent({ amountCents: opts.amountCents, currency: "USD", checkoutId: opts.idempotencyKey, idempotencyKey: `ai:${opts.idempotencyKey}`, metadata: { aiCharge: opts.kind, sellerId: opts.sellerId, key: opts.key } });
+    const pi = await createPaymentIntent({ amountCents: opts.amountCents, currency: "USD", checkoutId: opts.idempotencyKey, idempotencyKey: `ai:${opts.idempotencyKey}`, metadata: { aiCharge: opts.kind, sellerId: opts.sellerId, key: opts.key, ...(opts.credits != null ? { credits: String(opts.credits) } : {}) } });
     return { settled: false, provider, providerRef: pi.providerRef, clientSecret: pi.clientSecret };
   }
   const pi = await createPaymentIntent({ amountCents: opts.amountCents, currency: "USD", checkoutId: opts.idempotencyKey, idempotencyKey: opts.idempotencyKey });
   return { settled: pi.settled, provider: pi.provider, providerRef: pi.providerRef, clientSecret: undefined };
+}
+
+/**
+ * Stripe confirmed a credit pack payment (webhook). Credits are added once: the ledger row's
+ * idempotency key is the same one the purchase request used. The credits and price come from what
+ * was agreed at purchase time (PaymentIntent metadata and amount), not today's pack settings.
+ */
+export async function completeCreditPackPayment(pi: { id: string; amount_received?: number; amount?: number; metadata?: Record<string, string> }) {
+  const m = pi.metadata ?? {};
+  const credits = Number(m.credits);
+  if (m.aiCharge !== "CREDIT_PACK" || !m.sellerId || !m.checkoutId || !Number.isInteger(credits) || credits <= 0) return false;
+  const amountCents = pi.amount_received ?? pi.amount ?? 0;
+  const pack = await prisma.aiCreditPack.findUnique({ where: { key: m.key } });
+  const done = await prisma.$transaction(async (tx) => {
+    if (await tx.aiCreditTransaction.findUnique({ where: { idempotencyKey: m.checkoutId } })) return false;
+    await tx.aiBillingCharge.create({ data: { sellerId: m.sellerId, kind: "CREDIT_PACK", packKey: m.key, amountCents, provider: "stripe", providerRef: pi.id, isTest: false } });
+    await tx.aiCreditTransaction.create({ data: { sellerId: m.sellerId, kind: "PURCHASE", amount: credits, bucket: "purchased", idempotencyKey: m.checkoutId, revenueCents: amountCents, note: pack?.name ?? m.key } });
+    return true;
+  });
+  if (done) {
+    await audit(prisma, { action: "ai.credits.purchase", targetType: "seller", targetId: m.sellerId, data: { pack: m.key, providerRef: pi.id } });
+    emit(`seller:${m.sellerId}`, "credits:changed", await creditBalance(prisma, m.sellerId));
+  }
+  return true;
 }
 
 /** Roll every subscription whose period ended: expire unused allowance (minus rollover), grant the next one. */
@@ -145,7 +169,7 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!pack || !pack.active) throw notFound("Credit pack");
     const txnKey = `purchase:${seller.id}:${idempotencyKey}`;
     if (await prisma.aiCreditTransaction.findUnique({ where: { idempotencyKey: txnKey } })) return { ok: true, replay: true, balance: await creditBalance(prisma, seller.id) };
-    const c = await collectAiCharge({ sellerId: seller.id, amountCents: pack.priceCents, kind: "CREDIT_PACK", key: pack.key, idempotencyKey: txnKey });
+    const c = await collectAiCharge({ sellerId: seller.id, amountCents: pack.priceCents, kind: "CREDIT_PACK", key: pack.key, idempotencyKey: txnKey, credits: pack.credits });
     if (!c.settled) return { requiresPayment: true, clientSecret: c.clientSecret };
     await prisma.$transaction(async (tx) => {
       await tx.aiBillingCharge.create({ data: { sellerId: seller.id, kind: "CREDIT_PACK", packKey: pack.key, amountCents: pack.priceCents, provider: c.provider, providerRef: c.providerRef, isTest: c.provider === "test" } });

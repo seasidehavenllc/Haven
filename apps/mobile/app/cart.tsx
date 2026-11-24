@@ -1,8 +1,10 @@
 import { router } from "expo-router";
+import { formatMoney } from "@haven/shared";
 import { useState } from "react";
 import { Image, ScrollView, View } from "react-native";
 import { api, newKey } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { payWithStripe } from "@/lib/pay";
 import { Btn, Empty, ErrorNote, Field, Loading, Money, Notice, T, s, useColors } from "@/components/ui";
 
 const blank = { name: "", line1: "", line2: "", city: "", region: "", postalCode: "", country: "US" };
@@ -18,18 +20,39 @@ export default function Cart() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<any>(null);
   const [done, setDone] = useState<any>(null);
+  const [paid, setPaid] = useState(false);
+  const [paying, setPaying] = useState(false);
 
   if (loading) return <Loading />;
   if (error) return <View style={s.screen}><ErrorNote error={error} /></View>;
-  if (done)
+  if (done) {
+    const pk: string | null = caps.data?.payments.publishableKey ?? null;
+    const due = done.orders.reduce((n: number, o: any) => n + o.totalCents, 0);
+    const needsCard = !!done.clientSecret && !paid;
+    const pay = async () => {
+      if (!pk) return;
+      setPaying(true);
+      setErr(null);
+      try {
+        if ((await payWithStripe(pk, done.clientSecret)) === "paid") setPaid(true);
+      } catch (e) {
+        setErr(e);
+      } finally {
+        setPaying(false);
+      }
+    };
     return (
       <View style={s.screen}>
-        <T size={24} weight="700">Order placed</T>
+        <T size={24} weight="700">{needsCard ? "Pay for your order" : paid ? "Payment received" : "Order placed"}</T>
         {done.orders[0]?.isTest && <Notice>Test payment: no real money moved. Stripe isn't connected on this server.</Notice>}
-        {done.clientSecret && <Notice>Payment confirmation with Stripe's mobile sheet is part of the next build; your order is reserved until payment completes.</Notice>}
-        <Btn title="View orders" onPress={() => router.replace("/account")} />
+        {needsCard && pk && caps.data?.payments.liveMode === false && <Notice>Stripe test mode: use card 4242 4242 4242 4242, any future date and any CVC. No real money moves.</Notice>}
+        {needsCard && !pk && <Notice>Card payments aren't switched on yet (the server needs STRIPE_PUBLISHABLE_KEY). Your items are held for a short time.</Notice>}
+        {paid && <T color={c.muted}>Stripe is confirming the payment. Your order shows as paid in a few seconds.</T>}
+        <ErrorNote error={err} />
+        {needsCard && pk ? <Btn title={paying ? "Opening payment…" : `Pay ${formatMoney(due)}`} disabled={paying} onPress={pay} /> : !needsCard && <Btn title="View orders" onPress={() => router.replace("/account")} />}
       </View>
     );
+  }
   const items = cart?.items ?? [];
   const f = (k: keyof typeof blank, label: string) => <Field label={label} value={a[k]} onChangeText={(v) => setA({ ...a, [k]: v })} />;
 
