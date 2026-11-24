@@ -59,15 +59,16 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   const token = await accessToken();
   if (token) headers.authorization = `Bearer ${token}`;
   if (init.body !== undefined) headers["content-type"] = "application/json";
-  // Give up after a while instead of spinning forever. Uploads (form) get longer.
+  if (init.form) return upload<T>(path, init.form, headers, retry);
+  // Give up after a while instead of spinning forever.
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), init.form ? 120_000 : 30_000);
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
-      method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
+      method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
       headers,
-      body: init.form ?? (init.body !== undefined ? JSON.stringify(init.body) : undefined),
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
       signal: ctrl.signal,
     });
   } catch (e: any) {
@@ -80,6 +81,32 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   const json = text ? JSON.parse(text) : null;
   if (!res.ok) throw new ApiError(res.status, json?.error ?? "error", json?.message ?? `Request failed (${res.status})`, json?.details);
   return json as T;
+}
+
+/**
+ * Multipart uploads (photos, videos) go through React Native's XMLHttpRequest, which sends
+ * `{ uri, name, type }` file parts straight from disk. Expo's fetch rejects those parts with
+ * "Unsupported FormDataPart implementation".
+ */
+function upload<T>(path: string, form: FormData, headers: Record<string, string>, retry: boolean): Promise<T> {
+  return new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}${path}`);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.timeout = 180_000;
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () => reject(new Error("Network request failed"));
+    xhr.ontimeout = () => reject(new Error("Network request timed out"));
+    xhr.send(form);
+  }).then(async ({ status, text }) => {
+    if (status === 401 && retry && (await refresh())) {
+      const token = await accessToken();
+      return upload<T>(path, form, token ? { authorization: `Bearer ${token}` } : {}, false);
+    }
+    const json = text ? JSON.parse(text) : null;
+    if (status < 200 || status >= 300) throw new ApiError(status, json?.error ?? "error", json?.message ?? `Request failed (${status})`, json?.details);
+    return json as T;
+  });
 }
 
 export const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
