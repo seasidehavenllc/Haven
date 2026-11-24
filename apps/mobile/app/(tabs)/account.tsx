@@ -3,6 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { api, logout } from "@/lib/api";
+import { GoLive } from "@/components/GoLive";
 import { useApi, useMe } from "@/lib/hooks";
 import { Avatar, Btn, Chip, Empty, ErrorNote, Icon, Loading, Money, Row, T, s, useColors } from "@/components/ui";
 
@@ -61,6 +62,8 @@ function Profile() {
           <Icon name="open-outline" size={20} color={c.muted} />
         </Pressable>
       </View>
+
+      {me!.canSell && <GoLive compact />}
 
       <T size={18} weight="700">Orders</T>
       {orders.loading ? <Loading /> : orders.error ? <ErrorNote error={orders.error} /> : !orders.data?.length ? <Empty title="No orders yet">Things you buy show up here with tracking.</Empty> : orders.data.map((o) => (

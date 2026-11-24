@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { api, saveTokens } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
-import { Btn, Chip, Empty, ErrorNote, Field, Loading, ModeBadge, Notice, T, s, useColors } from "@/components/ui";
+import { Avatar, Btn, Chip, ErrorNote, Field, Icon, Loading, ModeBadge, Notice, T, s, useColors } from "@/components/ui";
+import { GoLive } from "@/components/GoLive";
 import { SellerApply } from "@/components/SellerApply";
 
 type Photo = { uri: string; mimeType?: string | null; fileName?: string | null };
@@ -29,17 +30,72 @@ export default function Sell() {
 
 function SellerHome() {
   const c = useColors();
-  const caps = useApi<any>("/capabilities");
+  const { me } = useMe();
   const drafts = useApi<any[]>("/seller/scans");
   const shows = useApi<any[]>("/seller/streams");
+  const [adding, setAdding] = useState(false);
+  useRealtime(null, { "scan:updated": () => drafts.reload() });
+
+  const seller = me!.seller;
+  const pending = (drafts.data ?? []).filter((d) => d.status !== "PUBLISHED");
+  const open = (shows.data ?? []).filter((x) => x.status !== "ENDED");
+  return (
+    <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={drafts.loading || shows.loading} onRefresh={() => (drafts.reload(), shows.reload())} />}>
+      {/* The seller's shop: what buyers see on the profile. */}
+      <Pressable onPress={() => router.push(`/u/${me!.user.handle}`)} style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", gap: 12 }]} accessibilityRole="button" accessibilityLabel="View your shop">
+        <Avatar uri={me!.user.avatarUrl} name={me!.user.displayName} size={48} />
+        <View style={{ flex: 1 }}>
+          <T size={17} weight="800" lines={1}>{seller?.storefront?.name ?? seller?.businessName ?? me!.user.displayName}</T>
+          <T size={12} color={c.muted} lines={1}>@{me!.user.handle} · View your shop</T>
+        </View>
+        <Icon name="chevron-forward" size={18} color={c.muted} />
+      </Pressable>
+
+      {open.some((x) => x.status === "LIVE" || x.status === "PAUSED") ? null : <GoLive />}
+
+      {!!open.length && <T size={18} weight="700">Your shows</T>}
+      {open.map((x) => (
+        <Link key={x.id} href={`/studio/${x.id}`} asChild>
+          <Pressable style={[s.card, { borderColor: x.status === "LIVE" ? c.live : c.line, backgroundColor: c.card }]}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {x.status === "LIVE" && <Chip label="LIVE" color={c.live} />}
+              <ModeBadge mode={x.mode} />
+            </View>
+            <T weight="600">{x.title}</T>
+            <T size={12} color={c.muted}>{x.status === "LIVE" ? "You're live. Tap to go back to your show." : `${x._count.products} items · ${x.status.toLowerCase()}`}</T>
+          </Pressable>
+        </Link>
+      ))}
+
+      {!!pending.length && <T size={18} weight="700">Drafts to review</T>}
+      {pending.map((d) => (
+        <Link key={d.id} href={`/scan/${d.id}`} asChild>
+          <Pressable style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center" }]}>
+            {d.imageUrls[0] && <Image source={{ uri: d.imageUrls[0] }} style={{ width: 56, height: 56, borderRadius: 10 }} />}
+            <View style={{ flex: 1 }}>
+              <T weight="600" lines={1}>{d.draft?.title || "Untitled item"}</T>
+              <T size={12} color={d.status === "FAILED" ? c.live : c.muted}>{d.status === "READY" ? "Ready for your review" : d.status === "FAILED" ? "AI couldn't analyze it. Fill in by hand" : "Analyzing…"}</T>
+            </View>
+          </Pressable>
+        </Link>
+      ))}
+
+      {/* Stocking the shop outside a show is secondary: during a show, Sell item does this live. */}
+      <Btn kind="ghost" icon={adding ? "chevron-up" : "add"} title={adding ? "Hide" : "Add items to your shop"} onPress={() => setAdding(!adding)} />
+      {adding && <AddItems onCreated={() => drafts.reload()} />}
+    </ScrollView>
+  );
+}
+
+/** Photo-to-listing for stocking the shop before or between shows. */
+function AddItems({ onCreated }: { onCreated: () => void }) {
+  const c = useColors();
+  const caps = useApi<any>("/capabilities");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [barcode, setBarcode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<any>(null);
-  const [title, setTitle] = useState("");
-  const [showMode, setShowMode] = useState<"HUMAN" | "HUMAN_AI_COHOST">("HUMAN_AI_COHOST");
-  useRealtime(null, { "scan:updated": () => drafts.reload() });
 
   async function pick(camera: boolean) {
     setErr(null);
@@ -63,7 +119,7 @@ function SellerHome() {
       if (denied) setErr({ message: denied.error ?? "AI scan was not run", details: denied.errorDetails });
       setPhotos([]);
       setBarcode("");
-      drafts.reload();
+      onCreated();
     } catch (e) {
       setErr(e);
     } finally {
@@ -71,11 +127,9 @@ function SellerHome() {
     }
   }
 
-  const pending = (drafts.data ?? []).filter((d) => d.status !== "PUBLISHED");
   return (
-    <ScrollView contentContainerStyle={s.screen} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={drafts.loading} onRefresh={() => (drafts.reload(), shows.reload())} />}>
-      <T size={24} weight="800">Scan to sell</T>
-      <T size={13} color={c.muted}>Snap the item. AI drafts the listing. You check it, set the price, and it lands in your live menu.</T>
+    <View style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
+      <T size={13} color={c.muted}>Snap an item and AI drafts the listing. You check it and set the price.</T>
       {caps.data && !caps.data.ai.PRODUCT_SCAN && <Notice>AI scanning isn't connected on this server yet (needs ANTHROPIC_API_KEY or another vision provider). Photos still upload and you can fill in drafts by hand.</Notice>}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Btn style={{ flex: 1 }} kind={mode === "single" ? "primary" : "ghost"} title="One item" onPress={() => setMode("single")} />
@@ -84,7 +138,7 @@ function SellerHome() {
       <T size={12} color={c.muted}>{mode === "single" ? "Several photos of the same item: front, back, labels, wear." : "One photo per item, up to 25 at once."}</T>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Btn style={{ flex: 1 }} kind="ghost" icon="camera-outline" title="Take photo" onPress={() => pick(true)} />
-        <Btn style={{ flex: 1 }} kind="ghost" icon="images-outline" title="Choose photos" onPress={() => pick(false)} />
+        <Btn style={{ flex: 1 }} kind="ghost" icon="images-outline" title="Choose" onPress={() => pick(false)} />
       </View>
       {!!photos.length && (
         <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
@@ -95,61 +149,9 @@ function SellerHome() {
           ))}
         </ScrollView>
       )}
-      {mode === "single" && <Field label="Barcode / UPC (optional)" keyboardType="number-pad" value={barcode} onChangeText={(v) => setBarcode(v.replace(/\D/g, ""))} />}
+      {mode === "single" && !!photos.length && <Field label="Barcode / UPC (optional)" keyboardType="number-pad" value={barcode} onChangeText={(v) => setBarcode(v.replace(/\D/g, ""))} />}
       <ErrorNote error={err} />
-      <Btn title={busy ? "Analyzing…" : mode === "batch" && photos.length > 1 ? `Create ${photos.length} listings` : "Create listing"} busy={busy} disabled={!photos.length} onPress={upload} />
-
-      <T size={18} weight="700">Drafts to review</T>
-      {!pending.length && !drafts.loading && <Empty title="No drafts">Scanned items wait here until you confirm them.</Empty>}
-      {pending.map((d) => (
-        <Link key={d.id} href={`/scan/${d.id}`} asChild>
-          <Pressable style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center" }]}>
-            {d.imageUrls[0] && <Image source={{ uri: d.imageUrls[0] }} style={{ width: 56, height: 56, borderRadius: 10 }} />}
-            <View style={{ flex: 1 }}>
-              <T weight="600" lines={1}>{d.draft?.title || "Untitled item"}</T>
-              <T size={12} color={d.status === "FAILED" ? c.live : c.muted}>{d.status === "READY" ? "Ready for your review" : d.status === "FAILED" ? "AI couldn't analyze it. Fill in by hand" : "Analyzing…"}</T>
-            </View>
-          </Pressable>
-        </Link>
-      ))}
-
-      <T size={18} weight="700">Live shows</T>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Btn style={{ flex: 1 }} kind={showMode === "HUMAN_AI_COHOST" ? "ai" : "ghost"} title="You + AI co-host" onPress={() => setShowMode("HUMAN_AI_COHOST")} />
-        <Btn style={{ flex: 1 }} kind={showMode === "HUMAN" ? "primary" : "ghost"} title="Just you" onPress={() => setShowMode("HUMAN")} />
-      </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Field placeholder="Show title" value={title} onChangeText={setTitle} />
-        </View>
-        <Btn
-          title="Create"
-          disabled={title.trim().length < 3}
-          onPress={async () => {
-            setErr(null);
-            try {
-              const st = await api("/seller/streams", { body: { title, mode: showMode } });
-              setTitle("");
-              router.push(`/studio/${st.id}`);
-            } catch (e) {
-              setErr(e);
-            }
-          }}
-        />
-      </View>
-      <T size={12} color={c.muted}>AI-hosted shows are set up on the website (they need an AI salesperson on the Business plan).</T>
-      {(shows.data ?? []).filter((x) => x.status !== "ENDED").map((x) => (
-        <Link key={x.id} href={`/studio/${x.id}`} asChild>
-          <Pressable style={[s.card, { borderColor: c.line, backgroundColor: c.card }]}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {x.status === "LIVE" && <Chip label="LIVE" color={c.live} />}
-              <ModeBadge mode={x.mode} />
-            </View>
-            <T weight="600">{x.title}</T>
-            <T size={12} color={c.muted}>{x._count.products} products · {x.status.toLowerCase()}</T>
-          </Pressable>
-        </Link>
-      ))}
-    </ScrollView>
+      {!!photos.length && <Btn title={busy ? "Analyzing…" : mode === "batch" && photos.length > 1 ? `Create ${photos.length} listings` : "Create listing"} busy={busy} onPress={upload} />}
+    </View>
   );
 }
