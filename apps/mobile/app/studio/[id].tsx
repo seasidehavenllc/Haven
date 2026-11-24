@@ -264,8 +264,9 @@ function Sheet({ visible, onClose, title, children }: { visible: boolean; onClos
 }
 
 /**
- * Snap the item, say what it is and the price, and it's listed. The live camera turns off for the moment the photo is
- * taken (the phone can only use the camera for one thing at a time) and comes straight back.
+ * Snap the item, say what it is and the price, and it's listed. "Snap from video" takes the photo straight from the live video,
+ * so viewers keep watching. On a phone or build that can't, it falls back to the phone camera: the live camera turns
+ * off for that moment (the phone can only use the camera for one thing at a time) and comes straight back.
  */
 function AddItem({ streamId, aiOff, camera, onDone }: { streamId: string; aiOff: boolean; camera: React.MutableRefObject<HostCamera | null>; onDone: (msg: string) => void }) {
   const c = useColors();
@@ -278,6 +279,14 @@ function AddItem({ streamId, aiOff, camera, onDone }: { streamId: string; aiOff:
 
   async function snap(fromCamera: boolean) {
     setErr(null);
+    // Best: a still straight from the live video, so the stream never stops.
+    if (fromCamera) {
+      const uri = await camera.current?.grab().catch(() => null);
+      if (uri) {
+        setPhotos((cur) => [...cur, { uri, mimeType: "image/jpeg", fileName: `live-${Date.now()}.jpg`, width: 0, height: 0 } as ImagePicker.ImagePickerAsset].slice(0, 4));
+        return;
+      }
+    }
     const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return setErr({ message: fromCamera ? "Camera permission is off. Turn it on in Settings." : "Photo access is off. Turn it on in Settings." });
     const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.7, allowsMultipleSelection: !fromCamera, selectionLimit: 4 };
@@ -314,9 +323,10 @@ function AddItem({ streamId, aiOff, camera, onDone }: { streamId: string; aiOff:
   return (
     <>
       <View style={{ flexDirection: "row", gap: 8 }}>
-        <Btn style={{ flex: 1 }} kind="ghost" icon="camera" title="Snap it" onPress={() => snap(true)} />
+        <Btn style={{ flex: 1 }} kind="ghost" icon="camera" title="Snap from video" onPress={() => snap(true)} />
         <Btn style={{ flex: 1 }} kind="ghost" icon="images" title="Photos" onPress={() => snap(false)} />
       </View>
+      <T size={12} color={c.muted}>Hold the item up to your camera and tap Snap from video. Viewers keep watching while you do.</T>
       {photos.length > 0 && (
         <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
           {photos.map((p, i) => (
