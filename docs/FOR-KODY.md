@@ -17,15 +17,14 @@ Everything before these (#2 to #9) is merged.
 - ~~**Where to host.**~~ Decided: free hosting, website on GitHub Pages at `sales.seasidehavenllc.com`,
   server on Render at `api.seasidehavenllc.com`, database and files on Supabase. Step-by-step setup and every
   DNS record are in [DEPLOY.md](DEPLOY.md).
-- **Shipping defaults for new stores.** Each seller sets their own per-order rate, extra-item rate and
-  free-shipping threshold. New stores start at $0 (free shipping) until they change it. Do you want a
-  different starting default, like $5.99 per order?
-- **Who pays for labels.** Labels are bought on Haven's Shippo/EasyPost account and the cost is recorded
-  against the seller, to be taken out of payouts. That deduction gets wired up when Stripe payouts are
-  connected. Confirm that's how you want it.
-- **AI voice prices.** Voice is now 8 credits per 1,000 characters (about $0.08) because ElevenLabs costs
-  around $0.06 per 1,000 characters at list price; the old 3 credits lost money. Transcription stays 2
-  credits a minute and avatars 25 a minute. Change these in Admin if you'd like different margins.
+- **Shipping defaults for new stores (decided).** New stores start with free shipping. Each seller can
+  set their own per-order rate, extra-item rate and free-shipping threshold in Studio.
+- **Who pays for labels (decided).** Labels are bought on Haven's Shippo/EasyPost account, and the cost
+  is recorded against the seller in the seller ledger, to come out of their payouts. The deduction
+  happens automatically once Stripe payouts to sellers are built.
+- **AI voice prices (decided).** Voice is 10 credits per 1,000 characters (about $0.10). ElevenLabs costs
+  around $0.06 per 1,000 characters at list price. Transcription stays 2 credits a minute and avatars
+  25 a minute. Change any of these in Admin, under AI, in the feature prices section.
 
 ## Accounts and keys
 
