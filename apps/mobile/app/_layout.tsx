@@ -1,7 +1,8 @@
 import { registerGlobals } from "@livekit/react-native";
 import { DarkTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Image, Platform, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, AppState, Image, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useMe } from "@/lib/hooks";
 import { usePush } from "@/lib/push";
@@ -68,13 +69,34 @@ function AppStack() {
 function Splash() {
   const c = useColors();
   const { offline, reload } = useMe();
+  const [busy, setBusy] = useState(false);
+  const retry = useCallback(async () => {
+    setBusy(true);
+    try {
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }, [reload]);
+
+  // Keep trying on its own while the server can't be reached, and again whenever the app comes back to the front.
+  useEffect(() => {
+    if (!offline) return;
+    const timer = setInterval(retry, 10_000);
+    const sub = AppState.addEventListener("change", (s) => s === "active" && void retry());
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [offline, retry]);
+
   return (
     <View style={{ flex: 1, backgroundColor: c.paper, alignItems: "center", justifyContent: "center", padding: 32, gap: 18 }}>
       <Image source={require("../assets/mark.png")} style={{ width: 72, height: 72 }} accessibilityLabel="Haven" />
       {offline ? (
         <>
-          <T color={c.muted} style={{ textAlign: "center" }}>{friendlyError(offline)}</T>
-          <Btn title="Try again" onPress={reload} style={{ alignSelf: "stretch" }} />
+          <T color={c.muted} style={{ textAlign: "center" }}>{busy ? "Connecting to Haven…" : friendlyError(offline)}</T>
+          <Btn title="Try again" busy={busy} onPress={retry} style={{ alignSelf: "stretch" }} />
         </>
       ) : (
         <ActivityIndicator color={c.brand} />

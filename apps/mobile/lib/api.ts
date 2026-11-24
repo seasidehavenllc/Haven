@@ -60,27 +60,35 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   if (token) headers.authorization = `Bearer ${token}`;
   if (init.body !== undefined) headers["content-type"] = "application/json";
   if (init.form) return upload<T>(path, init.form, headers, retry);
-  // Give up after a while instead of spinning forever.
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  const method = init.method ?? (init.body !== undefined ? "POST" : "GET");
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
-      method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
-      headers,
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-      signal: ctrl.signal,
-    });
-  } catch (e: any) {
-    throw new Error(e?.name === "AbortError" ? "Network request timed out" : (e?.message ?? "Network request failed"));
-  } finally {
-    clearTimeout(timer);
+    res = await send(`${API_URL}${path}`, { method, headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined });
+  } catch (e) {
+    // iOS drops idle keep-alive connections ("The network connection was lost"). A read is safe to
+    // send again, and the second try opens a fresh connection.
+    if (method !== "GET") throw e;
+    await new Promise((r) => setTimeout(r, 600));
+    res = await send(`${API_URL}${path}`, { method, headers });
   }
   if (res.status === 401 && retry && (await refresh())) return api<T>(path, init, false);
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
   if (!res.ok) throw new ApiError(res.status, json?.error ?? "error", json?.message ?? `Request failed (${res.status})`, json?.details);
   return json as T;
+}
+
+/** One request that gives up after 30 seconds instead of spinning forever. Network failures throw a plain Error. */
+async function send(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e: any) {
+    throw new Error(e?.name === "AbortError" ? "Network request timed out" : "Network request failed");
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
