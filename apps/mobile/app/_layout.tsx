@@ -38,6 +38,7 @@ export default function Root() {
             <Stack.Screen name="video/[id]" options={{ title: "", headerTransparent: true }} />
             <Stack.Screen name="video/new" options={{ title: "Post a video" }} />
             <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
+            <Stack.Screen name="admin" options={{ title: "Admin" }} />
           </Stack>
         </AuthProvider>
       </ThemeProvider>
