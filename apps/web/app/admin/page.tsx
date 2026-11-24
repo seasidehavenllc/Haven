@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { ErrorNote, Loading } from "@/components/ui";
-import { AuditTab, has, OrdersTab, RoleBanner, SellersTab, ShowsTab, StaffTab, UserDetail, type Staff } from "./sections";
+import { AuditTab, has, OrdersTab, RoleBanner, SellerApplicationsTab, SellersTab, ShowsTab, StaffTab, UserDetail, type Staff } from "./sections";
 
 const usd = (n: number | null | undefined, d = 2) => (n == null ? "—" : `$${n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })}`);
 type Tab = { name: string; show: (s: Staff) => boolean };
@@ -14,6 +14,7 @@ const TABS: Tab[] = [
   { name: "Orders", show: (s) => has(s, "orders.view") },
   { name: "People", show: (s) => has(s, "users.view") },
   { name: "Reports", show: (s) => has(s, "reports.view") },
+  { name: "Seller applications", show: (s) => has(s, "sellers.view") },
   { name: "Sellers", show: (s) => has(s, "sellers.manage") },
   { name: "Live shows", show: (s) => has(s, "shows.manage") },
   { name: "AI profitability", show: (s) => has(s, "finance.view") },
@@ -49,6 +50,7 @@ export default function Admin() {
       {tab === "Orders" && <OrdersTab staff={s} />}
       {tab === "People" && <Users staff={s} />}
       {tab === "Reports" && <Reports staff={s} />}
+      {tab === "Seller applications" && <SellerApplicationsTab staff={s} />}
       {tab === "Sellers" && <SellersTab />}
       {tab === "Live shows" && <ShowsTab />}
       {tab === "AI profitability" && <Profitability />}

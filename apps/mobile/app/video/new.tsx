@@ -12,7 +12,7 @@ const MAX_TAGS = 6;
 export default function NewVideo() {
   const c = useColors();
   const { me } = useMe();
-  const isSeller = !!me?.seller;
+  const isSeller = !!me?.canSell;
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [cover, setCover] = useState<string | null>(null);
   const [caption, setCaption] = useState("");

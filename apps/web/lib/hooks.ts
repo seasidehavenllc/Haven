@@ -27,7 +27,7 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
   return { data, error, loading, reload: load, setData };
 }
 
-export type Me = { blockedUserIds?: string[]; user: { id: string; handle: string; displayName: string; roles: string[]; email: string; hasPassword?: boolean; staffRole?: "OWNER" | "MANAGER" | "SUPPORT" | null }; seller: null | { id: string; businessName: string; storefront: { slug: string; name: string } | null; plan: { key: string; name: string } | null; aiDisabled: boolean } };
+export type Me = { canSell?: boolean; sellerApplication?: { status: string; decisionNote: string | null } | null; blockedUserIds?: string[]; user: { id: string; handle: string; displayName: string; roles: string[]; email: string; hasPassword?: boolean; staffRole?: "OWNER" | "MANAGER" | "SUPPORT" | null }; seller: null | { id: string; businessName: string; status?: string; storefront: { slug: string; name: string } | null; plan: { key: string; name: string } | null; aiDisabled: boolean } };
 
 export function useMe() {
   const [me, setMe] = useState<Me | null>(null);

@@ -67,7 +67,7 @@ export function mobileRoute(link: string) {
   const u = link.match(/^\/u\/([^/?#]+)/);
   if (u) return `/u/${u[1]}`;
   if (link.startsWith("/orders")) return "/account";
-  if (link.startsWith("/seller")) return "/sell";
+  if (link.startsWith("/sell")) return "/sell";
   if (link.startsWith("/admin")) return "/admin";
   return "/notifications";
 }

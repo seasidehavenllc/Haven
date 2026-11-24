@@ -22,9 +22,10 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const path = usePathname();
   useEffect(() => {
     if (ready && !me) router.push("/login?next=/seller");
-    else if (ready && me && !me.seller) router.push("/sell");
+    // Only approved sellers get the dashboard; everyone else sees their application on /sell.
+    else if (ready && me && !me.canSell) router.push("/sell");
   }, [ready, me, router]);
-  if (!ready || !me?.seller) return <Loading />;
+  if (!ready || !me?.seller || !me.canSell) return <Loading />;
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[210px_1fr]">
       <aside className="min-w-0 space-y-1">

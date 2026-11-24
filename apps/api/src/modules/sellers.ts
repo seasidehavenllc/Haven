@@ -1,43 +1,21 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import { StorefrontInput } from "@haven/shared";
 import { prisma } from "../db";
-import { requireSeller, requireUser, signAccessToken } from "../lib/auth";
-import { conflict, notFound } from "../lib/errors";
+import { requireSeller, requireUser } from "../lib/auth";
+import { conflict, forbidden, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
-import { grantAllowance } from "../ai/ledger";
 import { notify } from "../notify";
 
-const BecomeSeller = z.object({ businessName: z.string().min(2).max(120), storefront: StorefrontInput });
-
 export async function sellerRoutes(app: FastifyInstance) {
-  /** Upgrade the current user to a seller with a storefront and the free Starter AI plan. */
+  /**
+   * Opening a store used to be instant. Selling now needs an approved application
+   * (see sellerApplications.ts), so this only points older app versions to it.
+   */
   app.post("/sellers", async (req) => {
     const u = requireUser(req);
-    const input = parse(BecomeSeller, req.body);
     if (await prisma.sellerAccount.findUnique({ where: { userId: u.id } })) throw conflict("You already have a seller account");
-    if (await prisma.storefront.findUnique({ where: { slug: input.storefront.slug } })) throw conflict("That store URL is taken");
-    const starter = await prisma.aiPlan.findFirst({ where: { tier: 0, active: true }, orderBy: { monthlyPriceCents: "asc" } });
-    const seller = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUniqueOrThrow({ where: { id: u.id } });
-      await tx.user.update({ where: { id: u.id }, data: { roles: Array.from(new Set([...user.roles, "SELLER"])) as any } });
-      const seller = await tx.sellerAccount.create({
-        data: { userId: u.id, businessName: input.businessName, storefront: { create: input.storefront } },
-        include: { storefront: true },
-      });
-      if (starter) {
-        const now = new Date();
-        const end = new Date(now);
-        end.setUTCMonth(end.getUTCMonth() + 1);
-        await tx.sellerSubscription.create({ data: { sellerId: seller.id, planId: starter.id, currentPeriodStart: now, currentPeriodEnd: end } });
-        await grantAllowance(tx, seller.id, starter.monthlyCredits, now.toISOString().slice(0, 10), `${starter.name} monthly allowance`);
-      }
-      await audit(tx, { actorId: u.id, action: "seller.create", targetType: "seller", targetId: seller.id });
-      return seller;
-    });
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: u.id } });
-    return { seller, accessToken: await signAccessToken({ id: u.id, roles: user.roles, sellerId: seller.id }) };
+    throw forbidden("To sell on Haven, apply from the Sell tab. Our team reviews every new seller.");
   });
 
   app.patch("/sellers/me/storefront", async (req) => {
