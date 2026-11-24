@@ -43,7 +43,13 @@ export async function buildApp() {
     routerOptions: { ignoreDuplicateSlashes: true, ignoreTrailingSlash: true },
   });
 
-  await app.register(cors, { origin: env.WEB_ORIGIN.split(",").map((o) => o.trim()), credentials: true });
+  // @fastify/cors only allows GET, HEAD and POST unless told otherwise, which silently broke every PATCH, PUT
+// and DELETE from the website (admin switches, edits, unfollow, removing from cart...).
+  await app.register(cors, {
+    origin: env.WEB_ORIGIN.split(",").map((o) => o.trim().replace(/\/+$/, "")),
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  });
   await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute", allowList: () => env.NODE_ENV === "test" });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 25 } });
   mkdirSync(uploadRoot, { recursive: true });

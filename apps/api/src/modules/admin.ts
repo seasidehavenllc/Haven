@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
 import { textAdapters } from "../ai/adapters";
+import { avatarAdapters, sttAdapters, ttsAdapters } from "../ai/voice";
 import { notify, createNotifications, deliver } from "../notify";
 
 const micros = (v: bigint | null | undefined) => Number(v ?? 0n) / 1e6;
@@ -56,7 +57,7 @@ export async function adminRoutes(app: FastifyInstance) {
         monthlySpendLimitMicros: undefined,
         // Only whether the secret is present — never its value.
         credentialConfigured: !!process.env[p.credentialEnvVar],
-        adapterAvailable: !!textAdapters[p.adapter],
+        adapterAvailable: !!(textAdapters[p.adapter] ?? ttsAdapters[p.adapter] ?? sttAdapters[p.adapter] ?? avatarAdapters[p.adapter]),
         month: { calls: ok?._count ?? 0, failures: failed?._count ?? 0, costUsd: micros(ok?._sum.providerCostMicros), avgLatencyMs: ok?._avg.latencyMs ?? null },
       };
     });
