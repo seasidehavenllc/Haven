@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
+import { LiveVideo } from "@/components/LiveVideo";
 import { block, choose, report } from "@/lib/safety";
 import { Btn, Chip, ErrorNote, Field, Icon, Loading, ModeBadge, Money, Notice, T, minPrice, s, stock, useColors } from "@/components/ui";
 
@@ -51,16 +52,20 @@ export default function LiveViewer() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
-      <View style={{ aspectRatio: 16 / 9, backgroundColor: "#111", justifyContent: "center", padding: 16 }}>
-        <T color="#fff" size={13} style={{ textAlign: "center", opacity: 0.85 }}>
-          {st.status === "SCHEDULED"
-            ? `Starts ${st.scheduledFor ? new Date(st.scheduledFor).toLocaleString() : "soon"}`
-            : st.status === "ENDED"
-              ? "This show has ended"
-              : st.video.configured
-                ? "Live video needs the native LiveKit player, which ships with the next app build."
-                : "Live video isn't connected on this server yet (LiveKit keys needed). Chat, the menu and buying work."}
-        </T>
+      <View style={{ aspectRatio: 9 / 12, maxHeight: 420, backgroundColor: "#111", justifyContent: "center" }}>
+        {st.status === "LIVE" && st.video.configured ? (
+          <LiveVideo streamId={st.id} />
+        ) : (
+          <T color="#fff" size={13} style={{ textAlign: "center", opacity: 0.85, padding: 16 }}>
+            {st.status === "SCHEDULED"
+              ? `Starts ${st.scheduledFor ? new Date(st.scheduledFor).toLocaleString() : "soon"}`
+              : st.status === "ENDED"
+                ? "This show has ended"
+                : st.status === "PAUSED"
+                  ? "The host paused the show. It'll be back shortly."
+                  : "Live video isn't connected on this server yet (LiveKit keys needed). Chat, the menu and buying work."}
+          </T>
+        )}
         <View style={{ position: "absolute", top: 10, left: 10, flexDirection: "row", gap: 6 }}>
           {st.status === "LIVE" && <Chip label="LIVE" color={c.live} />}
           <ModeBadge mode={st.mode} />

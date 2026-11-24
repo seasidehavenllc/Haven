@@ -1,3 +1,4 @@
+import { registerGlobals } from "@livekit/react-native";
 import { DarkTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Image, Platform, View } from "react-native";
@@ -5,6 +6,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useMe } from "@/lib/hooks";
 import { usePush } from "@/lib/push";
 import { Btn, T, friendlyError, palette, useColors } from "@/components/ui";
+
+// WebRTC for live video (LiveKit) has to be set up before anything joins a room.
+if (Platform.OS !== "web") registerGlobals();
 
 // Navigation chrome (tab bar, headers, back buttons) uses Haven's dark palette. Without this the
 // default light theme drew dark grey tab labels on the dark tab bar, which made them unreadable.
