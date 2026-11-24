@@ -3,6 +3,7 @@ import { useState } from "react";
 import { FlatList, Image, Pressable, View, useWindowDimensions } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
+import { block, report } from "@/lib/safety";
 import { Btn, Empty, ErrorNote, Loading, T, s, useColors } from "@/components/ui";
 
 const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
@@ -11,7 +12,7 @@ export default function Profile() {
   const { handle } = useLocalSearchParams<{ handle: string }>();
   const c = useColors();
   const { width } = useWindowDimensions();
-  const { me } = useMe();
+  const { me, reload: reloadMe } = useMe();
   const profile = useApi<any>(`/users/${handle}`);
   const videos = useApi<any[]>(`/users/${handle}/videos`);
   const [err, setErr] = useState<any>(null);
@@ -68,7 +69,24 @@ export default function Profile() {
               {stat(p.videoCount, p.videoCount === 1 ? "video" : "videos")}
             </View>
             <ErrorNote error={err} />
-            {!p.isMe && <Btn title={p.followedByMe ? "Following" : "Follow"} kind={p.followedByMe ? "ghost" : "primary"} onPress={toggleFollow} />}
+            {!p.isMe && !p.blocked && <Btn title={p.followedByMe ? "Following" : "Follow"} kind={p.followedByMe ? "ghost" : "primary"} onPress={toggleFollow} />}
+            {p.blockedByMe && <T size={13} color={c.muted}>You blocked @{p.handle}. You won't see each other's videos, comments or chat.</T>}
+            {me && !p.isMe && (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Btn
+                  kind="ghost"
+                  style={{ flex: 1 }}
+                  title={p.blockedByMe ? "Unblock" : "Block"}
+                  onPress={async () => {
+                    if (p.blockedByMe) {
+                      await api(`/users/${p.handle}/block`, { method: "DELETE" }).catch(setErr);
+                    } else if (!(await block(p.handle))) return;
+                    await Promise.all([reloadMe(), profile.reload(), videos.reload()]);
+                  }}
+                />
+                <Btn kind="ghost" style={{ flex: 1 }} title="Report" onPress={() => report("user", p.id, `@${p.handle}`)} />
+              </View>
+            )}
             {p.seller?.storefront && <T size={13} color={c.muted}>Runs the shop {p.seller.storefront.name}</T>}
           </View>
         }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatMoney } from "@haven/shared";
+import { SafetyMenu } from "./Safety";
 
 export type Video = {
   id: string;
@@ -113,6 +114,7 @@ export function VideoCard({ v, me, muted, onToggleMute, onComments }: { v: Video
           <span className="text-2xl">↗</span>
           Share
         </button>
+        {me && me !== v.creatorId && <SafetyMenu target="video" targetId={v.id} what="this video" handle={v.creator.handle} light />}
         <span className="text-xs opacity-80">{compact(v.viewCount)} {v.viewCount === 1 ? "view" : "views"}</span>
       </div>
 

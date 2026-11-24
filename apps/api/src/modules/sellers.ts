@@ -97,19 +97,22 @@ export async function sellerRoutes(app: FastifyInstance) {
       },
     });
     if (!u) throw notFound("User");
-    const [videoCount, mine] = await Promise.all([
+    const [videoCount, mine, block] = await Promise.all([
       prisma.video.count({ where: { creatorId: u.id, status: "READY" } }),
       req.user ? prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: req.user.id, followeeId: u.id } } }) : null,
+      req.user ? prisma.userBlock.findMany({ where: { OR: [{ blockerId: req.user.id, blockedId: u.id }, { blockerId: u.id, blockedId: req.user.id }] } }) : [],
     ]);
     const { _count, ...rest } = u;
-    return { ...rest, followerCount: _count.followers, followingCount: _count.following, videoCount, followedByMe: !!mine, isMe: req.user?.id === u.id };
+    const blockedByMe = block.some((b) => b.blockerId === req.user?.id);
+    return { ...rest, followerCount: _count.followers, followingCount: _count.following, videoCount, followedByMe: !!mine, isMe: req.user?.id === u.id, blockedByMe, blocked: block.length > 0 };
   });
 
   app.post("/users/:id/follow", async (req) => {
     const u = requireUser(req);
     const { id } = req.params as { id: string };
     if (id === u.id) throw conflict("You cannot follow yourself");
-    if (!(await prisma.user.findUnique({ where: { id }, select: { id: true } }))) throw notFound("User");
+    if (!(await prisma.user.findUnique({ where: { id, status: "ACTIVE" }, select: { id: true } }))) throw notFound("User");
+    if (await prisma.userBlock.findFirst({ where: { OR: [{ blockerId: u.id, blockedId: id }, { blockerId: id, blockedId: u.id }] } })) throw conflict("You can't follow this person");
     const n = await prisma.$executeRaw`INSERT INTO "Follow" ("followerId", "followeeId") VALUES (${u.id}, ${id}) ON CONFLICT DO NOTHING`;
     if (n) {
       const me = await prisma.user.findUniqueOrThrow({ where: { id: u.id }, select: { displayName: true, handle: true } });

@@ -3,13 +3,15 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { useApi, useRealtime } from "@/lib/hooks";
+import { useApi, useMe, useRealtime } from "@/lib/hooks";
+import { SafetyMenu } from "@/components/Safety";
 import { ErrorNote, Loading, Money, ProductCard } from "@/components/ui";
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { data, error, loading, setData } = useApi<any>(`/products/${id}`);
+  const { me } = useMe();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [img, setImg] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
@@ -60,7 +62,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </Link>
           )}
           <div>
-            <h1 className="font-display text-3xl font-bold">{p.title}</h1>
+            <div className="flex items-start gap-2">
+              <h1 className="min-w-0 flex-1 font-display text-3xl font-bold">{p.title}</h1>
+              {me && me.seller?.id !== p.sellerId && <SafetyMenu target="product" targetId={p.id} what="this listing" />}
+            </div>
             <div className="mt-1 text-sm text-muted">
               {p.brand && <>{p.brand} · </>}
               {p.condition.replace("_", " ").toLowerCase()}

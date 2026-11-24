@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
+import { block, choose, report } from "@/lib/safety";
 import { Btn, Chip, ErrorNote, Field, Loading, ModeBadge, Money, Notice, T, minPrice, s, stock, useColors } from "@/components/ui";
 
 export default function LiveViewer() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const c = useColors();
-  const { me } = useMe();
+  const { me, reload: reloadMe } = useMe();
   const { data: st, loading, error, reload, setData } = useApi<any>(`/streams/${id}`);
   const [chat, setChat] = useState<any[]>([]);
   const [text, setText] = useState("");
@@ -68,7 +69,14 @@ export default function LiveViewer() {
       </View>
       {st.aiDisclosure && <View style={{ backgroundColor: c.ai, padding: 8 }}><T size={12} weight="600" color="#fff">🤖 {st.aiDisclosure}</T></View>}
       <View style={{ padding: 12, gap: 8 }}>
-        <T size={18} weight="700" lines={1}>{st.title}</T>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <T size={18} weight="700" lines={1} style={{ flex: 1 }}>{st.title}</T>
+          {me && me.user.id !== st.seller.userId && (
+            <Pressable hitSlop={8} accessibilityLabel="Report this live stream" onPress={() => report("stream", st.id, "this live stream")}>
+              <T size={12} color={c.muted}>Report</T>
+            </Pressable>
+          )}
+        </View>
         {pinned && (
           <View style={[s.card, { borderColor: c.brand, backgroundColor: c.card, flexDirection: "row", alignItems: "center", padding: 10 }]}>
             <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: c.line }}>{pinned.media[0] && <Image source={{ uri: pinned.media[0].url }} style={{ width: 52, height: 52 }} />}</View>
@@ -95,17 +103,27 @@ export default function LiveViewer() {
         ref={list}
         style={{ flex: 1, borderTopWidth: 1, borderColor: c.line }}
         contentContainerStyle={{ padding: 12, gap: 6 }}
-        data={chat}
+        data={chat.filter((m) => !m.userId || !me?.blockedUserIds?.includes(m.userId))}
         keyExtractor={(m) => m.id}
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
         ListEmptyComponent={<T size={13} color={c.muted}>No messages yet.</T>}
         renderItem={({ item: m }) => (
-          <View style={m.isAi ? { backgroundColor: c.ai + "18", borderRadius: 10, padding: 6 } : undefined}>
+          <Pressable
+            style={m.isAi ? { backgroundColor: c.ai + "18", borderRadius: 10, padding: 6 } : undefined}
+            delayLongPress={350}
+            accessibilityHint={me && m.userId && m.userId !== me.user.id ? "Long press to report or block" : undefined}
+            onLongPress={async () => {
+              if (!me || !m.userId || m.userId === me.user.id || !m.user?.handle) return;
+              const i = await choose(`Message from @${m.user.handle}`, ["Report message", `Block @${m.user.handle}`], 1);
+              if (i === 0) await report("chat", m.id, "this message");
+              if (i === 1 && (await block(m.user.handle))) await reloadMe();
+            }}
+          >
             <T size={14}>
               <T size={14} weight="700" color={m.isAi ? c.ai : c.ink}>{m.isAi ? "AI assistant" : m.user?.displayName ?? "viewer"} </T>
               {m.body}
             </T>
-          </View>
+          </Pressable>
         )}
       />
       <View style={{ flexDirection: "row", gap: 8, padding: 10, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.card }}>

@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
+import { useApi, useMe } from "@/lib/hooks";
+import { SafetyMenu } from "./Safety";
 import { ErrorNote, Spinner } from "./ui";
 
 export function VideoComments({ videoId, me, creatorId, onClose }: { videoId: string; me: string | null; creatorId: string; onClose?: () => void }) {
   const { data, loading, setData } = useApi<any[]>(`/videos/${videoId}/comments`);
+  const blocked = useMe().me?.blockedUserIds ?? [];
   const [body, setBody] = useState("");
   const [err, setErr] = useState<any>(null);
   return (
@@ -21,7 +23,7 @@ export function VideoComments({ videoId, me, creatorId, onClose }: { videoId: st
       <div className="flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         {loading && <Spinner />}
         {data && !data.length && <p className="text-muted">No comments yet.</p>}
-        {data?.map((c) => (
+        {data?.filter((c) => !blocked.includes(c.user.id)).map((c) => (
           <div key={c.id} className="flex gap-2">
             <div className="flex-1">
               <b>@{c.user.handle}</b> {c.body}
@@ -31,6 +33,7 @@ export function VideoComments({ videoId, me, creatorId, onClose }: { videoId: st
                 Remove
               </button>
             )}
+            {me && me !== c.user.id && <SafetyMenu target="comment" targetId={c.id} what="this comment" handle={c.user.handle} />}
           </div>
         ))}
       </div>

@@ -3,6 +3,7 @@ import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, View } from
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { Btn, ErrorNote, Field, T, useColors } from "./ui";
+import { block, choose, report } from "@/lib/safety";
 
 export function VideoComments({ video, onClose }: { video: { id: string; creatorId: string } | null; onClose: () => void }) {
   return (
@@ -15,8 +16,9 @@ export function VideoComments({ video, onClose }: { video: { id: string; creator
 
 function Sheet({ video, onClose }: { video: { id: string; creatorId: string }; onClose: () => void }) {
   const c = useColors();
-  const { me } = useMe();
+  const { me, reload } = useMe();
   const { data, setData } = useApi<any[]>(`/videos/${video.id}/comments`);
+  const shown = (data ?? []).filter((x) => !me?.blockedUserIds?.includes(x.user.id));
   const [body, setBody] = useState("");
   const [err, setErr] = useState<any>(null);
   return (
@@ -28,7 +30,7 @@ function Sheet({ video, onClose }: { video: { id: string; creatorId: string }; o
         </Pressable>
       </View>
       <FlatList
-        data={data ?? []}
+        data={shown}
         keyExtractor={(x) => x.id}
         ListEmptyComponent={<T color={c.muted}>{data ? "No comments yet." : "Loading…"}</T>}
         renderItem={({ item }) => (
@@ -40,6 +42,19 @@ function Sheet({ video, onClose }: { video: { id: string; creatorId: string }; o
             {me && (me.user.id === item.user.id || me.user.id === video.creatorId) && (
               <Pressable onPress={() => api(`/videos/${video.id}/comments/${item.id}`, { method: "DELETE" }).then(() => setData((d) => (d ?? []).filter((x) => x.id !== item.id)))}>
                 <T size={12} color={c.muted}>Remove</T>
+              </Pressable>
+            )}
+            {me && me.user.id !== item.user.id && (
+              <Pressable
+                hitSlop={8}
+                accessibilityLabel={`More options for @${item.user.handle}'s comment`}
+                onPress={async () => {
+                  const i = await choose(`@${item.user.handle}'s comment`, ["Report comment", `Block @${item.user.handle}`], 1);
+                  if (i === 0) await report("comment", item.id, "this comment");
+                  if (i === 1 && (await block(item.user.handle))) await reload();
+                }}
+              >
+                <T size={12} color={c.muted}>•••</T>
               </Pressable>
             )}
           </View>

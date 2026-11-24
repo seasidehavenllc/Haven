@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { blockedIds, isBlockedBetween } from "./safety";
 import { speakInStream } from "./aivoice";
 import { StreamInput, CohostModes, StreamModes } from "@haven/shared";
 import { prisma } from "../db";
@@ -102,13 +103,14 @@ export async function streamRoutes(app: FastifyInstance) {
 
   app.get("/streams/:id", async (req) => {
     const { id } = req.params as { id: string };
+    const hidden = await blockedIds(req.user?.id);
     const s = await prisma.livestream.findUnique({
       where: { id },
       include: {
         ...menuInclude,
         seller: { select: { id: true, userId: true, businessName: true, storefront: { select: { slug: true, name: true, logoUrl: true } } } },
         aiAgent: { select: { name: true, personality: true, voiceId: true } },
-        chat: { where: { hidden: false }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { handle: true, displayName: true } } } },
+        chat: { where: { hidden: false, OR: [{ userId: null }, { userId: { notIn: hidden } }] }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { handle: true, displayName: true } } } },
         auctions: { where: { status: { in: ["LIVE", "SCHEDULED"] } } },
       },
     });
@@ -207,6 +209,8 @@ export async function streamRoutes(app: FastifyInstance) {
     const { body } = parse(z.object({ body: z.string().trim().min(1).max(500) }), req.body);
     const s = await prisma.livestream.findUnique({ where: { id: (req.params as any).id } });
     if (!s || !["LIVE", "PAUSED"].includes(s.status)) throw conflict("Chat is closed");
+    const host = await prisma.sellerAccount.findUniqueOrThrow({ where: { id: s.sellerId }, select: { userId: true } });
+    if (await isBlockedBetween(u.id, host.userId)) throw forbidden("You can't chat in this stream");
     const msg = await prisma.streamChatMessage.create({ data: { streamId: s.id, userId: u.id, body }, include: { user: { select: { handle: true, displayName: true } } } });
     emit(`stream:${s.id}`, "stream:chat", msg);
     return msg;

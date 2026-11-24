@@ -85,6 +85,7 @@ export function Nav() {
                     <Link href="/videos" className="block rounded px-3 py-2 hover:bg-line">Videos</Link>
                     <Link href="/auctions" className="block rounded px-3 py-2 hover:bg-line">Auctions</Link>
                     <Link href="/orders" className="block rounded px-3 py-2 hover:bg-line">Orders</Link>
+                    <Link href="/settings/account" className="block rounded px-3 py-2 hover:bg-line">Account settings</Link>
                     <Link href={isSeller ? "/seller" : "/sell"} className="block rounded px-3 py-2 hover:bg-line">{isSeller ? "Studio" : "Sell"}</Link>
                     {isAdmin && <Link href="/admin" className="block rounded px-3 py-2 hover:bg-line">Admin</Link>}
                     <button className="block w-full rounded px-3 py-2 text-left text-muted hover:bg-line" onClick={signOut}>Sign out</button>

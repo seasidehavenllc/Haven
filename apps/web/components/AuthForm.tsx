@@ -66,6 +66,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <label className="label" htmlFor="pw">Password</label>
         <input id="pw" className="input" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={form.password} onChange={set("password")} required minLength={mode === "register" ? 10 : 1} />
         {mode === "register" && <p className="mt-1 text-xs text-muted">At least 10 characters.</p>}
+        {mode === "register" && (
+          <p className="mt-2 text-xs text-muted">
+            By joining you agree to Haven&rsquo;s <Link href="/terms" className="underline">Terms</Link> and <Link href="/privacy" className="underline">Privacy policy</Link>. Haven has zero tolerance for objectionable content or abusive people.
+          </p>
+        )}
       </div>
       <ErrorNote error={err} />
       <button className="btn-primary w-full py-3" disabled={busy}>

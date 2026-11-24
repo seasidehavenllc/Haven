@@ -16,8 +16,7 @@
         "NSMicrophoneUsageDescription": "Record sound with your videos.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "usesAppleSignIn": true,
-      "buildNumber": "1"
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "com.seasidehaven.haven",
@@ -28,8 +27,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a1a2f"
-      },
-      "versionCode": 1
+      }
     },
     "plugins": [
       "expo-router",
