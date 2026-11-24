@@ -19,7 +19,7 @@ export function Nav() {
     router.push("/");
   };
   const isSeller = !!me?.seller;
-  const isAdmin = me?.user.roles.includes("ADMIN");
+  const isAdmin = !!me?.user.staffRole;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db";
-import { requireAdmin, requireUser, verifyPassword } from "../lib/auth";
+import { requireStaff, requireUser, verifyPassword } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
@@ -99,9 +99,9 @@ export async function safetyRoutes(app: FastifyInstance) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: u.id }, include: { seller: true } });
     if (user.status === "DELETED") throw notFound("Account");
     if (user.passwordHash && !(b.password && (await verifyPassword(b.password, user.passwordHash)))) throw forbidden("Enter your password to delete your account");
-    if (user.roles.includes("ADMIN")) {
-      const admins = await prisma.user.count({ where: { roles: { has: "ADMIN" }, status: "ACTIVE" } });
-      if (admins <= 1) throw conflict("You're the only admin. Make someone else an admin before deleting this account.");
+    if (user.staffRole === "OWNER") {
+      const owners = await prisma.user.count({ where: { staffRole: "OWNER", status: "ACTIVE" } });
+      if (owners <= 1) throw conflict("You're the only owner. Make someone else an owner in Admin → Staff before deleting this account.");
     }
     const [buying, selling] = await Promise.all([
       prisma.order.count({ where: { buyerId: u.id, status: { in: OPEN_ORDER } } }),
@@ -146,7 +146,7 @@ export async function safetyRoutes(app: FastifyInstance) {
 
   // ── Moderation (Admin → Reports) ──
   app.get("/admin/reports/open", async (req) => {
-    await requireAdmin(req);
+    await requireStaff(req, "reports.view");
     const reports = await prisma.report.findMany({ where: { status: "OPEN" }, orderBy: { createdAt: "asc" }, take: 200, include: { reporter: { select: { handle: true } } } });
     // Group by target so a moderator sees one row per reported thing, with what it actually is.
     const groups = new Map<string, { targetType: string; targetId: string; reports: typeof reports }>();
@@ -167,7 +167,7 @@ export async function safetyRoutes(app: FastifyInstance) {
   });
 
   app.post("/admin/reports/resolve", async (req) => {
-    const admin = await requireAdmin(req);
+    const admin = await requireStaff(req, "content.moderate");
     const b = parse(z.object({ targetType: z.enum(REPORT_TARGETS), targetId: z.string(), action: z.enum(["remove", "suspend_owner", "dismiss"]), note: z.string().trim().max(300).optional() }), req.body);
     const owner = await ownerOf(b.targetType, b.targetId);
     if (owner === undefined) throw notFound("That item");
@@ -202,7 +202,7 @@ export async function safetyRoutes(app: FastifyInstance) {
     if (b.action === "suspend_owner") {
       if (!owner) throw badRequest("This item has no owner to suspend");
       const target = await prisma.user.findUniqueOrThrow({ where: { id: owner } });
-      if (target.roles.includes("ADMIN")) throw forbidden("Admins can't be suspended here");
+      if (target.staffRole) throw forbidden("Staff accounts can't be suspended here. The owner manages them in Admin → Staff.");
       await prisma.$transaction([
         prisma.user.update({ where: { id: owner }, data: { status: "SUSPENDED" } }),
         prisma.session.updateMany({ where: { userId: owner, revokedAt: null }, data: { revokedAt: new Date() } }),

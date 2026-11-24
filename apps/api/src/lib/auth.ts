@@ -2,7 +2,8 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { Role } from "@prisma/client";
+import type { Role, StaffRole } from "@prisma/client";
+import { can, type StaffPermission } from "@haven/shared";
 import { env } from "../env";
 import { prisma } from "../db";
 import { forbidden, unauthorized } from "./errors";
@@ -89,11 +90,23 @@ export async function requireSeller(req: FastifyRequest) {
   return { user: u, seller };
 }
 
-export async function requireAdmin(req: FastifyRequest) {
-  const u = requireUser(req);
-  const fresh = await prisma.user.findUnique({ where: { id: u.id } });
-  if (!fresh?.roles.includes("ADMIN") || fresh.status !== "ACTIVE") throw forbidden("Admin only");
-  return u;
+export interface StaffUser extends AuthUser {
+  staffRole: StaffRole;
 }
+
+/**
+ * Admin routes call this with the permission they need. It reads the role fresh from the database on
+ * every request, so giving or taking away a role works immediately, with no sign-out needed.
+ */
+export async function requireStaff(req: FastifyRequest, permission?: StaffPermission): Promise<StaffUser> {
+  const u = requireUser(req);
+  const fresh = await prisma.user.findUnique({ where: { id: u.id }, select: { staffRole: true, status: true } });
+  if (!fresh?.staffRole || fresh.status !== "ACTIVE") throw forbidden("Staff only");
+  if (permission && !can(fresh.staffRole, permission)) throw forbidden("Your staff role doesn't allow this");
+  return { ...u, staffRole: fresh.staffRole };
+}
+
+/** Owner-only routes (fees, AI settings, finances, staff roles). */
+export const requireAdmin = (req: FastifyRequest) => requireStaff(req, "settings.manage");
 
 export type Reply = FastifyReply;

@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
-import { requireAdmin, requireUser } from "../lib/auth";
+import { requireStaff, requireUser } from "../lib/auth";
 import { audit } from "../lib/audit";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
@@ -267,7 +267,7 @@ export async function videoRoutes(app: FastifyInstance) {
   });
 
   app.post("/admin/videos/:id/remove", async (req) => {
-    const admin = await requireAdmin(req);
+    const admin = await requireStaff(req, "content.moderate");
     const id = (req.params as any).id as string;
     const { reason } = parse(z.object({ reason: z.string().trim().min(3).max(300) }), req.body);
     const v = await prisma.video.findUnique({ where: { id } });

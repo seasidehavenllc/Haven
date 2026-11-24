@@ -4,34 +4,58 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { ErrorNote, Loading } from "@/components/ui";
+import { AuditTab, has, OrdersTab, RoleBanner, SellersTab, ShowsTab, StaffTab, UserDetail, type Staff } from "./sections";
 
 const usd = (n: number | null | undefined, d = 2) => (n == null ? "—" : `$${n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })}`);
-const TABS = ["Overview", "Reports", "AI profitability", "AI providers", "Plans & pricing", "Users"] as const;
+type Tab = { name: string; show: (s: Staff) => boolean };
+// Each person only sees the sections their role allows. The server checks every request as well.
+const TABS: Tab[] = [
+  { name: "Overview", show: () => true },
+  { name: "Orders", show: (s) => has(s, "orders.view") },
+  { name: "People", show: (s) => has(s, "users.view") },
+  { name: "Reports", show: (s) => has(s, "reports.view") },
+  { name: "Sellers", show: (s) => has(s, "sellers.manage") },
+  { name: "Live shows", show: (s) => has(s, "shows.manage") },
+  { name: "AI profitability", show: (s) => has(s, "finance.view") },
+  { name: "AI providers", show: (s) => has(s, "ai.manage") },
+  { name: "Plans & pricing", show: (s) => has(s, "ai.manage") },
+  { name: "Staff", show: (s) => has(s, "staff.manage") },
+  { name: "Audit log", show: (s) => has(s, "audit.view") },
+];
 
 export default function Admin() {
   const { me, ready } = useMe();
   const router = useRouter();
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const staff = useApi<Staff>(ready && me?.user.staffRole ? "/admin/me" : null, [ready, me?.user.staffRole]);
+  const [tab, setTab] = useState("Overview");
   useEffect(() => {
-    if (ready && !me?.user.roles.includes("ADMIN")) router.push("/");
+    if (ready && !me?.user.staffRole) router.push("/");
   }, [ready, me, router]);
-  if (!ready || !me?.user.roles.includes("ADMIN")) return <Loading />;
+  if (!ready || !me?.user.staffRole || !staff.data?.role) return staff.error ? <ErrorNote error={staff.error} /> : <Loading />;
+  const s = staff.data;
+  const tabs = TABS.filter((t) => t.show(s));
   return (
     <div className="space-y-6">
       <h1 className="font-display text-3xl font-bold">Platform control</h1>
+      <RoleBanner staff={s} />
       <nav className="flex flex-wrap gap-1">
-        {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${tab === t ? "bg-brand text-brand-ink" : "hover:bg-card"}`}>
-            {t}
+        {tabs.map((t) => (
+          <button key={t.name} onClick={() => setTab(t.name)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${tab === t.name ? "bg-brand text-brand-ink" : "hover:bg-card"}`}>
+            {t.name}
           </button>
         ))}
       </nav>
-      {tab === "Overview" && <Overview />}
+      {tab === "Overview" && <Overview staff={s} />}
+      {tab === "Orders" && <OrdersTab staff={s} />}
+      {tab === "People" && <Users staff={s} />}
+      {tab === "Reports" && <Reports staff={s} />}
+      {tab === "Sellers" && <SellersTab />}
+      {tab === "Live shows" && <ShowsTab />}
       {tab === "AI profitability" && <Profitability />}
       {tab === "AI providers" && <Providers />}
       {tab === "Plans & pricing" && <Plans />}
-      {tab === "Users" && <Users />}
-      {tab === "Reports" && <Reports />}
+      {tab === "Staff" && <StaffTab />}
+      {tab === "Audit log" && <AuditTab />}
     </div>
   );
 }
@@ -46,24 +70,41 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
   );
 }
 
-function Overview() {
+function Overview({ staff }: { staff: Staff }) {
   const o = useApi<any>("/admin/overview");
-  const s = useApi<any>("/admin/settings");
-  const [err, setErr] = useState<any>(null);
-  const [form, setForm] = useState<any>(null);
-  useEffect(() => {
-    if (s.data) setForm({ fee: s.data.marketplaceFeeBps / 100, daily: s.data.aiDailyBudgetUsd ?? "", monthly: s.data.aiMonthlyBudgetUsd ?? "" });
-  }, [s.data]);
-  if (o.loading || s.loading || !form) return <Loading />;
-  const save = (body: unknown) => api("/admin/settings", { method: "PATCH", body }).then(s.reload).catch(setErr);
+  if (o.loading) return <Loading />;
+  if (o.error) return <ErrorNote error={o.error} />;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Users" value={o.data.users} />
         <Stat label="Sellers" value={o.data.sellers} />
         <Stat label="Live now" value={o.data.liveStreams} />
-        <Stat label="GMV" value={usd(o.data.gmvUsd)} sub={`${o.data.orders} orders · fees ${usd(o.data.marketplaceFeesUsd)} · test orders excluded`} />
+        {o.data.gmvUsd != null ? (
+          <Stat label="GMV" value={usd(o.data.gmvUsd)} sub={`${o.data.orders} orders · fees ${usd(o.data.marketplaceFeesUsd)} · test orders excluded`} />
+        ) : (
+          <Stat label="Orders" value={o.data.orders} sub="test orders excluded" />
+        )}
+        <Stat label="Active listings" value={o.data.products} />
+        <Stat label="Open reports" value={o.data.openReports} sub={o.data.openReports ? "act within 24 hours" : undefined} />
       </div>
+      {has(staff, "settings.manage") && <Settings />}
+    </div>
+  );
+}
+
+function Settings() {
+  const s = useApi<any>("/admin/settings");
+  const [err, setErr] = useState<any>(null);
+  const [form, setForm] = useState<any>(null);
+  useEffect(() => {
+    if (s.data)
+      setForm({ fee: s.data.marketplaceFeeBps / 100, daily: s.data.aiDailyBudgetUsd ?? "", monthly: s.data.aiMonthlyBudgetUsd ?? "", manager: s.data.managerRefundLimitCents / 100, support: s.data.supportRefundLimitCents / 100 });
+  }, [s.data]);
+  if (s.loading || !form) return <Loading />;
+  const save = (body: unknown) => api("/admin/settings", { method: "PATCH", body }).then(s.reload).catch(setErr);
+  return (
+    <>
       <div className={`panel flex flex-wrap items-center justify-between gap-3 p-4 ${s.data.aiEmergencyDisabled ? "border-live bg-live/5" : ""}`}>
         <div>
           <div className="font-semibold">AI emergency switch</div>
@@ -73,7 +114,7 @@ function Overview() {
           {s.data.aiEmergencyDisabled ? "Turn AI back on" : "Turn off all AI"}
         </button>
       </div>
-      <div className="panel grid gap-3 p-4 md:grid-cols-4">
+      <div className="panel grid gap-3 p-4 md:grid-cols-3 xl:grid-cols-6">
         <div>
           <label className="label">Marketplace fee (%)</label>
           <input className="input" value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })} />
@@ -86,15 +127,31 @@ function Overview() {
           <label className="label">AI monthly provider budget ($)</label>
           <input className="input" placeholder="No limit" value={form.monthly} onChange={(e) => setForm({ ...form, monthly: e.target.value })} />
         </div>
+        <div>
+          <label className="label">Manager refund limit ($/order)</label>
+          <input className="input" value={form.manager} onChange={(e) => setForm({ ...form, manager: e.target.value })} />
+        </div>
+        <div>
+          <label className="label">Support refund limit ($/order)</label>
+          <input className="input" value={form.support} onChange={(e) => setForm({ ...form, support: e.target.value })} />
+        </div>
         <button
           className="btn-primary self-end"
-          onClick={() => save({ marketplaceFeeBps: Math.round(Number(form.fee) * 100), aiDailyBudgetUsd: form.daily === "" ? null : Number(form.daily), aiMonthlyBudgetUsd: form.monthly === "" ? null : Number(form.monthly) })}
+          onClick={() =>
+            save({
+              marketplaceFeeBps: Math.round(Number(form.fee) * 100),
+              aiDailyBudgetUsd: form.daily === "" ? null : Number(form.daily),
+              aiMonthlyBudgetUsd: form.monthly === "" ? null : Number(form.monthly),
+              managerRefundLimitUsd: Number(form.manager),
+              supportRefundLimitUsd: Number(form.support),
+            })
+          }
         >
           Save
         </button>
       </div>
       <ErrorNote error={err} />
-    </div>
+    </>
   );
 }
 
@@ -361,30 +418,44 @@ function FeaturePrice({ f, onSave }: { f: any; onSave: (c: number) => void }) {
   );
 }
 
-function Users() {
+function Users({ staff }: { staff: Staff }) {
   const [q, setQ] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [err, setErr] = useState<any>(null);
   const { data, loading, reload } = useApi<any[]>(`/admin/users?q=${encodeURIComponent(q)}`, [q]);
+  if (open) return <UserDetail id={open} staff={staff} onBack={() => setOpen(null)} />;
+  const canSuspend = has(staff, "users.suspend");
+  const canBan = has(staff, "users.ban");
+  const setStatus = (u: any, status: string) => {
+    setErr(null);
+    api(`/admin/users/${u.id}`, { method: "PATCH", body: { status } }).then(reload).catch(setErr);
+  };
   return (
     <div className="space-y-3">
-      <input className="input max-w-sm" placeholder="Search email or handle" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="input max-w-sm" placeholder="Search email or @handle" value={q} onChange={(e) => setQ(e.target.value)} />
+      <ErrorNote error={err} />
       {loading ? (
         <Loading />
       ) : (
         <div className="divide-y divide-line rounded-2xl border border-line bg-card text-sm">
           {data?.map((u) => (
             <div key={u.id} className="flex flex-wrap items-center gap-3 p-3">
-              <div className="min-w-0 flex-1 break-words">
+              <button className="min-w-0 flex-1 break-words text-left" onClick={() => setOpen(u.id)}>
                 <b>@{u.handle}</b> <span className="break-all text-muted">{u.email}</span>
                 <div className="text-xs text-muted">
-                  {u.roles.join(", ")}
+                  {u.staffRole ? `staff: ${u.staffRole.toLowerCase()}` : u.roles.filter((r: string) => r !== "ADMIN").join(", ").toLowerCase()}
                   {u.seller && ` · seller: ${u.seller.businessName} (${u.seller.status.toLowerCase()})`}
                 </div>
-              </div>
-              <select className="input w-full sm:w-36" value={u.status} onChange={(e) => api(`/admin/users/${u.id}`, { method: "PATCH", body: { status: e.target.value } }).then(reload)}>
-                {["ACTIVE", "SUSPENDED", "BANNED"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
+              </button>
+              {canSuspend && (!u.staffRole || staff.role === "OWNER") && (u.status !== "BANNED" || canBan) ? (
+                <select className="input w-full sm:w-36" value={u.status} onChange={(e) => setStatus(u, e.target.value)}>
+                  {["ACTIVE", "SUSPENDED", ...(canBan ? ["BANNED"] : [])].map((s) => (
+                    <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="chip">{u.status.charAt(0) + u.status.slice(1).toLowerCase()}</span>
+              )}
             </div>
           ))}
         </div>
@@ -396,7 +467,7 @@ function Users() {
 const KIND: Record<string, string> = { video: "Video", comment: "Comment", chat: "Live chat message", stream: "Live stream", product: "Listing", user: "Person" };
 
 /** Reported things, oldest first. Apple expects reports to be acted on within 24 hours. */
-function Reports() {
+function Reports({ staff }: { staff: Staff }) {
   const r = useApi<any[]>("/admin/reports/open");
   const [err, setErr] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -457,19 +528,21 @@ function Reports() {
               ))}
             </ul>
             <div className="flex flex-wrap gap-2">
-              {g.targetType !== "user" && g.preview && (
+              {has(staff, "content.moderate") && g.targetType !== "user" && g.preview && (
                 <button className="rounded-xl bg-live px-3 py-1.5 text-xs font-semibold text-white" disabled={busy === key} onClick={() => act(g, "remove")}>
                   Remove
                 </button>
               )}
-              {g.preview && (
+              {has(staff, "users.suspend") && g.preview && (
                 <button className="btn-ghost px-3 py-1.5 text-xs text-live" disabled={busy === key} onClick={() => act(g, "suspend_owner")}>
                   Suspend @{g.preview.by}
                 </button>
               )}
-              <button className="btn-ghost px-3 py-1.5 text-xs" disabled={busy === key} onClick={() => act(g, "dismiss")}>
-                Dismiss
-              </button>
+              {has(staff, "content.moderate") && (
+                <button className="btn-ghost px-3 py-1.5 text-xs" disabled={busy === key} onClick={() => act(g, "dismiss")}>
+                  Dismiss
+                </button>
+              )}
             </div>
           </div>
         );

@@ -86,6 +86,12 @@ function Profile() {
         </View>
       ))}
 
+      {u.staffRole && (
+        <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.brand, backgroundColor: c.card, overflow: "hidden" }}>
+          <Row icon="shield-half-outline" label={`Admin · ${u.staffRole === "OWNER" ? "Owner" : u.staffRole === "MANAGER" ? "Manager" : "Customer support"}`} onPress={() => router.push("/admin")} />
+        </View>
+      )}
+
       <T size={18} weight="700">Settings</T>
       <View style={{ borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, overflow: "hidden" }}>
         <Row icon="notifications-outline" label="Notifications" onPress={() => router.push("/notifications")} />
