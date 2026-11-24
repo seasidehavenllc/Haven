@@ -26,7 +26,7 @@ const featurePrices = [
   ["COHOST_MINUTE", 4, "minute"],
   ["AI_HOST_MINUTE", 30, "minute"],
   ["TRANSCRIPTION_MINUTE", 2, "minute"],
-  ["TTS_CHARACTERS", 8, "1k characters"], // voice list prices run $0.015–0.06 per 1k chars
+  ["TTS_CHARACTERS", 10, "1k characters"], // voice list prices run $0.015–0.06 per 1k chars
   ["AVATAR_MINUTE", 25, "minute"],
 ] as const;
 
