@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Image, Pressable, ScrollView, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
-import { Btn, ErrorNote, Field, Money, T, minPrice, s, useColors } from "@/components/ui";
+import { Btn, ErrorNote, Field, Icon, Money, T, minPrice, s, useColors } from "@/components/ui";
 
 const MAX_TAGS = 6;
 
@@ -89,7 +89,7 @@ export default function NewVideo() {
             <View style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", backgroundColor: c.line }}>{p.media?.[0] && <Image source={{ uri: p.media[0].url }} style={{ width: 40, height: 40 }} />}</View>
             <T size={14} style={{ flex: 1 }} lines={1}>{p.title}</T>
             <Money cents={minPrice(p)} size={13} />
-            <T>{on ? "✓" : "+"}</T>
+            <Icon name={on ? "checkmark-circle" : "add-circle-outline"} size={22} color={on ? c.brandLight : c.muted} />
           </Pressable>
         );
       })}

@@ -40,7 +40,7 @@ export default function AuctionScreen() {
 
   async function bid() {
     setErr(null);
-    if (!me) return router.push("/account");
+    if (!me) return router.push("/login");
     const cents = Math.round(Number(amount || min / 100) * 100);
     if (!(cents >= min)) return setErr({ message: `Bid at least $${(min / 100).toFixed(2)}` });
     setBusy(true);

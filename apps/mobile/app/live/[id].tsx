@@ -4,7 +4,7 @@ import { FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView,
 import { api } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
 import { block, choose, report } from "@/lib/safety";
-import { Btn, Chip, ErrorNote, Field, Loading, ModeBadge, Money, Notice, T, minPrice, s, stock, useColors } from "@/components/ui";
+import { Btn, Chip, ErrorNote, Field, Icon, Loading, ModeBadge, Money, Notice, T, minPrice, s, stock, useColors } from "@/components/ui";
 
 export default function LiveViewer() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,7 +38,7 @@ export default function LiveViewer() {
 
   async function add(p: any) {
     setErr(null);
-    if (!me) return router.push("/account");
+    if (!me) return router.push("/login");
     const v = p.variants.find((x: any) => x.quantity > 0);
     if (!v) return;
     try {
@@ -67,7 +67,7 @@ export default function LiveViewer() {
           <Chip label={`${st.viewers} watching`} color="#0008" />
         </View>
       </View>
-      {st.aiDisclosure && <View style={{ backgroundColor: c.ai, padding: 8 }}><T size={12} weight="600" color="#fff">🤖 {st.aiDisclosure}</T></View>}
+      {st.aiDisclosure && <View style={{ backgroundColor: c.ai, padding: 8 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Icon name="sparkles" size={14} color="#fff" /><T size={12} weight="600" color="#fff" style={{ flex: 1 }}>{st.aiDisclosure}</T></View></View>}
       <View style={{ padding: 12, gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <T size={18} weight="700" lines={1} style={{ flex: 1 }}>{st.title}</T>
@@ -134,7 +134,7 @@ export default function LiveViewer() {
           title="Send"
           disabled={!open || !text.trim()}
           onPress={async () => {
-            if (!me) return router.push("/account");
+            if (!me) return router.push("/login");
             try {
               await api(`/streams/${id}/chat`, { body: { body: text } });
               setText("");

@@ -26,17 +26,26 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
 }
 
 export type Me = {
-  user: { id: string; handle: string; displayName: string; roles: string[]; email: string; hasPassword?: boolean };
+  user: { id: string; handle: string; displayName: string; avatarUrl?: string | null; roles: string[]; email: string; hasPassword?: boolean };
   /** People this account blocked or was blocked by. Their content is hidden both ways. */
   blockedUserIds?: string[];
   seller: null | { id: string; businessName: string; storefront: { slug: string; name: string } | null; plan: { key: string; name: string } | null; aiDisabled: boolean };
 };
 
-const MeCtx = createContext<{ me: Me | null; ready: boolean; reload: () => Promise<void> }>({ me: null, ready: false, reload: async () => {} });
+type MeState = {
+  me: Me | null;
+  ready: boolean;
+  reload: () => Promise<void>;
+  /** Signed-out people see the login screen first. "Browse without an account" sets this for the session. */
+  guest: boolean;
+  setGuest: (g: boolean) => void;
+};
+const MeCtx = createContext<MeState>({ me: null, ready: false, reload: async () => {}, guest: false, setGuest: () => {} });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
+  const [guest, setGuest] = useState(false);
   const load = useCallback(async () => {
     if (!(await accessToken())) {
       setMe(null);
@@ -56,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     load();
     return onAuthChange(() => void load());
   }, [load]);
-  return <MeCtx.Provider value={{ me, ready, reload: load }}>{children}</MeCtx.Provider>;
+  return <MeCtx.Provider value={{ me, ready, reload: load, guest, setGuest }}>{children}</MeCtx.Provider>;
 }
 export const useMe = () => useContext(MeCtx);
 
