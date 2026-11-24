@@ -7,7 +7,7 @@ import { useApi, useMe, useRealtime } from "@/lib/hooks";
 import { LiveVideo } from "@/components/LiveVideo";
 import { AuctionCard, ChatOverlay, Hearts, PinnedComment, PinnedProductCard, RailButton, applyChat, compact, glass, shadow, useLikes, type ChatLine, type HeartsHandle } from "@/components/LiveOverlay";
 import { block, choose, report } from "@/lib/safety";
-import { Icon, Loading, T, friendlyError, minPrice, stock, useColors } from "@/components/ui";
+import { Avatar, Icon, Loading, T, friendlyError, minPrice, stock, useColors } from "@/components/ui";
 import { formatMoney } from "@haven/shared";
 
 /**
@@ -91,6 +91,11 @@ export default function LiveViewer() {
     );
 
   const live = st.status === "LIVE";
+  const host = {
+    handle: st.seller.user?.handle as string | undefined,
+    name: (st.seller.user?.displayName ?? st.seller.storefront?.name ?? st.seller.businessName) as string,
+    avatarUrl: (st.seller.user?.avatarUrl ?? st.seller.storefront?.logoUrl) as string | null | undefined,
+  };
   const open = ["LIVE", "PAUSED"].includes(st.status);
   const pinned = st.products.find((p: any) => p.productId === st.pinnedProductId)?.product;
   const auction = st.auctions.find((a: any) => a.status === "LIVE" || new Date(a.startsAt).getTime() <= Date.now());
@@ -180,16 +185,17 @@ export default function LiveViewer() {
       {/* Top: host, live badge, viewers, close. */}
       <View style={{ position: "absolute", top: insets.top + 6, left: 10, right: 10, gap: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {/* The host's profile, like TikTok: tap it to open their profile (and shop). */}
           <Pressable
-            onPress={() => st.seller.storefront?.slug && router.push(`/u/${st.seller.storefront.slug}` as any)}
+            onPress={() => host.handle && router.push(`/u/${host.handle}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${host.name}'s profile`}
             style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: glass, borderRadius: 999, paddingRight: 12, padding: 3, maxWidth: "60%" }}
           >
-            <View style={{ width: 32, height: 32, borderRadius: 16, overflow: "hidden", backgroundColor: c.brand, alignItems: "center", justifyContent: "center" }}>
-              {st.seller.storefront?.logoUrl ? <Image source={{ uri: st.seller.storefront.logoUrl }} style={{ width: 32, height: 32 }} /> : <T size={14} weight="700" color="#fff">{(st.seller.storefront?.name ?? st.seller.businessName).slice(0, 1)}</T>}
-            </View>
+            <Avatar uri={host.avatarUrl} name={host.name} size={32} />
             <View style={{ flexShrink: 1 }}>
-              <T size={13} weight="700" color="#fff" lines={1}>{st.seller.storefront?.name ?? st.seller.businessName}</T>
-              <T size={11} color="#ffffffcc" lines={1}>{st.title}</T>
+              <T size={13} weight="700" color="#fff" lines={1}>{host.name}</T>
+              {!!host.handle && <T size={11} color="#ffffffcc" lines={1}>@{host.handle}</T>}
             </View>
           </Pressable>
           <View style={{ flex: 1 }} />

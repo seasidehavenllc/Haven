@@ -139,7 +139,7 @@ export async function streamRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         ...menuInclude,
-        seller: { select: { id: true, userId: true, businessName: true, storefront: { select: { slug: true, name: true, logoUrl: true } } } },
+        seller: { select: { id: true, userId: true, businessName: true, storefront: { select: { slug: true, name: true, logoUrl: true } }, user: { select: { handle: true, displayName: true, avatarUrl: true } } } },
         aiAgent: { select: { name: true, personality: true, voiceId: true } },
         chat: { where: { hidden: false, OR: [{ userId: null }, { userId: { notIn: hidden } }] }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { handle: true, displayName: true } } } },
         auctions: { where: { status: { in: ["LIVE", "SCHEDULED"] } } },
