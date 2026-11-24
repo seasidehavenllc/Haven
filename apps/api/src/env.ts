@@ -9,6 +9,14 @@ const Env = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   UPLOAD_DIR: z.string().default("uploads"),
+  /** S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2...). Used when STORAGE_DRIVER=s3. */
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default("auto"),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  /** Public address the bucket's files are served from, e.g. https://media.seasidehavenllc.com */
+  CDN_BASE_URL: z.string().url().optional(),
   ALLOW_TEST_PAYMENTS: z
     .string()
     .optional()

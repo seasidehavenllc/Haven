@@ -1,0 +1,54 @@
+# Render Blueprint for Haven's API (free plan). In Render: New → Blueprint → pick this repository.
+# Render asks for every value marked `sync: false`; see docs/DEPLOY.md for where each one comes from.
+services:
+  - type: web
+    name: haven-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --production=false --filter @haven/api... && pnpm --filter @haven/api exec prisma generate
+    # Every start applies database migrations and the configuration seed (plans, credit prices, AI providers,
+    # and the admin login from ADMIN_EMAIL/ADMIN_PASSWORD). Both only add what's missing, so re-running is safe;
+    # the free plan has no separate pre-deploy step.
+    startCommand: pnpm --filter @haven/api exec prisma migrate deploy && pnpm --filter @haven/api db:seed && pnpm --filter @haven/api start
+    healthCheckPath: /health
+    buildFilter:
+      paths: ["apps/api/**", "packages/shared/**", "pnpm-lock.yaml", "render.yaml"]
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: PUBLIC_API_URL
+        value: https://api.seasidehavenllc.com
+      - key: WEB_ORIGIN
+        value: https://sales.seasidehavenllc.com
+      - key: JWT_SECRET
+        generateValue: true
+      # Your admin login, created on first start.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Supabase (free Postgres): Connect → "Session pooler" connection string (Render has no IPv6 for the direct one).
+      - key: DATABASE_URL
+        sync: false
+      # Supabase Storage through its S3 endpoint (or Cloudflare R2). Render's own disk is wiped on every
+      # restart, so uploads must go to a bucket.
+      - key: STORAGE_DRIVER
+        value: s3
+      - key: S3_REGION
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: CDN_BASE_URL
+        sync: false
+      # Add the rest when you have them (all optional): ANTHROPIC_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+      # LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, RESEND_API_KEY, EMAIL_FROM, SHIPPO_API_KEY,
+      # SHIPPING_WEBHOOK_TOKEN, APPLE_CLIENT_ID, GOOGLE_OAUTH_CLIENT_ID, ELEVENLABS_API_KEY, DEEPGRAM_API_KEY.

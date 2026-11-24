@@ -12,7 +12,7 @@ let io: Server | null = null;
 const viewers = new Map<string, Set<string>>(); // streamId -> socket ids
 
 export function initRealtime(server: HttpServer) {
-  io = new Server(server, { cors: { origin: env.WEB_ORIGIN.split(","), credentials: true } });
+  io = new Server(server, { cors: { origin: env.WEB_ORIGIN.split(",").map((o) => o.trim()), credentials: true } });
   io.on("connection", async (socket) => {
     const token = socket.handshake.auth?.token as string | undefined;
     if (token) {

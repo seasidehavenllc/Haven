@@ -93,7 +93,7 @@ export async function videoRoutes(app: FastifyInstance) {
       }),
       { ...fields, productIds: fields.productIds ? JSON.parse(fields.productIds) : [] },
     );
-    const probed = await probeVideo(video.key);
+    const probed = await probeVideo(video);
     if (probed === null) throw badRequest("We couldn't read that video. Try exporting it as MP4.");
     if (probed && probed.durationSec > 600) throw badRequest("Videos can be up to 10 minutes long");
     const productIds = [...new Set(meta.productIds)];

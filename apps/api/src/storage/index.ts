@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { AwsClient } from "aws4fetch";
 import { join, resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { env } from "../env";
@@ -51,11 +52,47 @@ export async function storeUpload(bytes: Buffer, prefix: string, opts: { audio?:
   const sha = createHash("sha256").update(bytes).digest("hex");
   const key = `${prefix}/${randomUUID()}.${ALLOWED.get(mime)}`;
   if (env.STORAGE_DRIVER === "s3") {
-    // Adapter slot: implement with @aws-sdk/client-s3 PutObject + CDN_BASE_URL.
-    throw notConfigured("S3 storage", ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "CDN_BASE_URL"]);
+    const s3 = bucket();
+    const res = await s3.client.fetch(`${s3.base}/${key}`, {
+      method: "PUT",
+      body: new Uint8Array(bytes),
+      headers: { "content-type": mime, "cache-control": "public, max-age=31536000, immutable" },
+    });
+    if (!res.ok) throw new Error(`Storage upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    return { url: `${publicBase()}${key}`, key, sha256: sha, mime, bytes };
   }
   const path = join(uploadRoot, key);
   await mkdir(join(path, ".."), { recursive: true });
   await writeFile(path, bytes);
   return { url: `${env.PUBLIC_API_URL}/uploads/${key}`, key, sha256: sha, mime, bytes };
+}
+
+let s3: { client: AwsClient; base: string } | null = null;
+function bucket() {
+  if (!env.S3_ENDPOINT || !env.S3_BUCKET || !env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY || !env.CDN_BASE_URL)
+    throw notConfigured("File storage", ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "CDN_BASE_URL"]);
+  s3 ??= {
+    client: new AwsClient({ accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY, service: "s3", region: env.S3_REGION }),
+    base: `${env.S3_ENDPOINT.replace(/\/$/, "")}/${env.S3_BUCKET}`,
+  };
+  return s3;
+}
+
+/** Where stored files are publicly served from (ends with a slash). */
+export function publicBase() {
+  return env.STORAGE_DRIVER === "s3" ? `${(env.CDN_BASE_URL ?? "").replace(/\/$/, "")}/` : `${env.PUBLIC_API_URL}/uploads/`;
+}
+
+/** Read back a file this server stored, by its public URL. Refuses URLs that aren't ours. */
+export async function readStored(url: string): Promise<{ key: string; bytes: Buffer }> {
+  const base = publicBase();
+  if (!url.startsWith(base)) throw badRequest("Not a stored file");
+  const key = url.slice(base.length);
+  if (key.includes("..")) throw badRequest("Not a stored file");
+  if (env.STORAGE_DRIVER === "s3") {
+    const res = await bucket().client.fetch(`${bucket().base}/${key}`);
+    if (!res.ok) throw new Error(`Storage read failed (${res.status})`);
+    return { key, bytes: Buffer.from(await res.arrayBuffer()) };
+  }
+  return { key, bytes: await readFile(join(uploadRoot, key)) };
 }
