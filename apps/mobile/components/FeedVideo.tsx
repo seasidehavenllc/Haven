@@ -5,13 +5,14 @@ import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { api, API_URL } from "@/lib/api";
 import { useMe } from "@/lib/hooks";
 import { Money, minPrice } from "./ui";
+import { block, choose, report } from "@/lib/safety";
 
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n));
 const W = { color: "#fff" } as const;
 
 /** One full-screen video. Plays only while it's the active item; counts a view after 2 seconds on screen. */
 export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }: { v: any; active: boolean; height: number; muted: boolean; onToggleMute: () => void; onComments: () => void }) {
-  const { me } = useMe();
+  const { me, reload } = useMe();
   const player = useVideoPlayer(v.mediaUrl, (p) => {
     p.loop = true;
   });
@@ -83,6 +84,20 @@ export function FeedVideo({ v, active, height, muted, onToggleMute, onComments }
           <Text style={{ ...W, fontSize: 24 }}>↗</Text>
           <Text style={{ ...W, fontSize: 12 }}>Share</Text>
         </Pressable>
+        {me && me.user.id !== v.creatorId && (
+          <Pressable
+            accessibilityLabel="More options"
+            hitSlop={8}
+            onPress={async () => {
+              const i = await choose("Video", ["Report video", `Block @${v.creator.handle}`], 1);
+              if (i === 0) await report("video", v.id, "this video");
+              if (i === 1 && (await block(v.creator.handle))) await reload();
+            }}
+            style={{ alignItems: "center" }}
+          >
+            <Text style={{ ...W, fontSize: 22 }}>•••</Text>
+          </Pressable>
+        )}
         <Text style={{ ...W, fontSize: 11, opacity: 0.8 }}>{compact(v.viewCount)} {v.viewCount === 1 ? "view" : "views"}</Text>
       </View>
 

@@ -76,7 +76,7 @@ export default function Videos() {
         </View>
       ) : (
         <FlatList
-          data={videos}
+          data={videos.filter((v) => !me?.blockedUserIds?.includes(v.creatorId))}
           keyExtractor={(v) => v.id}
           pagingEnabled
           showsVerticalScrollIndicator={false}

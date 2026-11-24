@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Image, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { api } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
+import { report } from "@/lib/safety";
 import { Btn, Chip, ErrorNote, Loading, Money, Notice, T, s, useColors } from "@/components/ui";
 
 export default function ProductScreen() {
@@ -48,6 +49,11 @@ export default function ProductScreen() {
           {p.brand ? ` · ${p.brand}` : ""}
         </T>
         {v && <Money cents={v.priceCents} size={24} />}
+        {me && me.seller?.id !== p.sellerId && (
+          <Pressable hitSlop={8} accessibilityLabel="Report this listing" onPress={() => report("product", p.id, "this listing")} style={{ alignSelf: "flex-start" }}>
+            <T size={12} color={c.muted}>Report listing</T>
+          </Pressable>
+        )}
         {p.variants.length > 1 && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {p.variants.map((x: any) => (

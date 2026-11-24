@@ -38,12 +38,15 @@ appears in App Store Connect → TestFlight after Apple finishes processing, whi
 
 ## Before you press "Submit for Review"
 
-Apple rejects apps that miss these. The first three still need to be built in Haven:
+Apple rejects apps that miss these.
 
-- [ ] **Delete account inside the app.** Apple requires this for any app where people can sign up.
-- [ ] **Report and block** for videos, live streams, comments and users. This is required for apps with
-      content that users post.
-- [ ] **Privacy policy page** on the website (for example sales.seasidehavenllc.com/privacy), linked in the app.
+- [x] **Delete account inside the app:** Me → Delete account (website: Settings → Account).
+- [x] **Report and block** for videos, comments, live chat, live streams, listings and people (the ••• menus,
+      long-press a chat message, or the profile's Block and Report buttons). Reports land in **Admin → Reports**.
+      Apple expects you to act on them **within 24 hours**, and the Terms promise that.
+- [x] **Privacy policy and terms:** sales.seasidehavenllc.com/privacy and /terms, linked in the app, at sign-up
+      and in the site footer. Use the privacy URL in App Store Connect → App Privacy. The contact address on both
+      pages is hello@seasidehavenllc.com (set in `apps/web/lib/legal.ts`); make sure that inbox exists.
 - [ ] Screenshots: 6.9-inch iPhone screenshots (1320 × 2868). Also iPad screenshots, because the app
       supports iPad. Take them in TestFlight on your phone.
 - [ ] App Store listing: subtitle, description, keywords, support URL, category (Shopping), and age

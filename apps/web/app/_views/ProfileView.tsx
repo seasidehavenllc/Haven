@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
+import { SafetyMenu, unblockUser } from "@/components/Safety";
 import { Empty, ErrorNote, Loading } from "@/components/ui";
 import { VideoTile, type Video } from "@/components/VideoCard";
 
@@ -13,8 +14,9 @@ export default function Profile({ params }: { params: Promise<{ handle: string }
   const { handle } = use(params);
   const router = useRouter();
   const { me } = useMe();
-  const profile = useApi<any>(`/users/${handle}`);
-  const videos = useApi<Video[]>(`/users/${handle}/videos`);
+  const blockKey = me?.blockedUserIds?.join(",");
+  const profile = useApi<any>(`/users/${handle}`, [blockKey]);
+  const videos = useApi<Video[]>(`/users/${handle}/videos`, [blockKey]);
   const [err, setErr] = useState<any>(null);
   if (profile.loading) return <Loading />;
   if (profile.error || !profile.data) return <ErrorNote error={profile.error} />;
@@ -56,11 +58,17 @@ export default function Profile({ params }: { params: Promise<{ handle: string }
           </div>
         </div>
         <div className="flex gap-2">
-          {!p.isMe && (
+          {!p.isMe && !p.blocked && (
             <button className={p.followedByMe ? "btn-ghost" : "btn-primary"} onClick={toggleFollow}>
               {p.followedByMe ? "Following" : "Follow"}
             </button>
           )}
+          {p.blockedByMe && (
+            <button className="btn-ghost" onClick={() => unblockUser(p.handle).then(() => (profile.reload(), videos.reload())).catch(setErr)}>
+              Unblock
+            </button>
+          )}
+          {me && !p.isMe && !p.blockedByMe && <SafetyMenu target="user" targetId={p.id} what={`@${p.handle}`} handle={p.handle} />}
           {p.seller?.storefront && (
             <Link href={`/store/${p.seller.storefront.slug}`} className="btn-ghost">
               Visit {p.seller.storefront.name}
@@ -68,6 +76,7 @@ export default function Profile({ params }: { params: Promise<{ handle: string }
           )}
         </div>
       </div>
+      {p.blockedByMe && <p className="text-sm text-muted">You blocked @{p.handle}. You won't see each other's videos, comments or chat.</p>}
       <ErrorNote error={err} />
       {videos.loading ? (
         <Loading />

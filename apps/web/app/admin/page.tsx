@@ -6,7 +6,7 @@ import { useApi, useMe } from "@/lib/hooks";
 import { ErrorNote, Loading } from "@/components/ui";
 
 const usd = (n: number | null | undefined, d = 2) => (n == null ? "—" : `$${n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })}`);
-const TABS = ["Overview", "AI profitability", "AI providers", "Plans & pricing", "Users"] as const;
+const TABS = ["Overview", "Reports", "AI profitability", "AI providers", "Plans & pricing", "Users"] as const;
 
 export default function Admin() {
   const { me, ready } = useMe();
@@ -31,6 +31,7 @@ export default function Admin() {
       {tab === "AI providers" && <Providers />}
       {tab === "Plans & pricing" && <Plans />}
       {tab === "Users" && <Users />}
+      {tab === "Reports" && <Reports />}
     </div>
   );
 }
@@ -388,6 +389,91 @@ function Users() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const KIND: Record<string, string> = { video: "Video", comment: "Comment", chat: "Live chat message", stream: "Live stream", product: "Listing", user: "Person" };
+
+/** Reported things, oldest first. Apple expects reports to be acted on within 24 hours. */
+function Reports() {
+  const r = useApi<any[]>("/admin/reports/open");
+  const [err, setErr] = useState<any>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const act = async (g: any, action: "remove" | "suspend_owner" | "dismiss") => {
+    setErr(null);
+    setBusy(`${g.targetType}:${g.targetId}`);
+    try {
+      await api("/admin/reports/resolve", { body: { targetType: g.targetType, targetId: g.targetId, action } });
+      r.setData((d: any[] | null) => d && d.filter((x) => !(x.targetType === g.targetType && x.targetId === g.targetId)));
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+  if (r.loading) return <Loading />;
+  if (r.error) return <ErrorNote error={r.error} />;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted">Act on every report within 24 hours. Removing content tells the person who posted it. Suspending signs them out everywhere and stops them signing in.</p>
+      <ErrorNote error={err} />
+      {!r.data?.length && <p className="panel p-4 text-sm text-muted">No open reports.</p>}
+      {r.data?.map((g) => {
+        const hours = Math.floor((Date.now() - new Date(g.firstReportedAt).getTime()) / 3600_000);
+        const key = `${g.targetType}:${g.targetId}`;
+        return (
+          <div key={key} className="panel min-w-0 space-y-2 break-words p-4 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <b>
+                {KIND[g.targetType] ?? g.targetType}
+                {g.preview?.by && <span className="font-normal text-muted"> by @{g.preview.by}</span>}
+              </b>
+              <span className={`text-xs ${hours >= 20 ? "text-live" : "text-muted"}`}>
+                {g.reports.length} report{g.reports.length === 1 ? "" : "s"} · first {hours < 1 ? "under an hour" : `${hours}h`} ago
+              </span>
+            </div>
+            {g.preview ? (
+              <div className="flex gap-3 rounded-xl bg-paper/60 p-3">
+                {g.preview.image && <img src={g.preview.image} alt="" className="h-20 w-14 shrink-0 rounded object-cover" />}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="whitespace-pre-wrap">{g.preview.text}</p>
+                  <p className="text-xs text-muted">
+                    Status: {String(g.preview.status).toLowerCase()} ·{" "}
+                    <a href={g.preview.link} target="_blank" rel="noreferrer" className="underline">
+                      Open
+                    </a>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted">This item no longer exists.</p>
+            )}
+            <ul className="space-y-0.5 text-xs text-muted">
+              {g.reports.map((x: any) => (
+                <li key={x.id}>
+                  “{x.reason}” from @{x.reporter}
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              {g.targetType !== "user" && g.preview && (
+                <button className="rounded-xl bg-live px-3 py-1.5 text-xs font-semibold text-white" disabled={busy === key} onClick={() => act(g, "remove")}>
+                  Remove
+                </button>
+              )}
+              {g.preview && (
+                <button className="btn-ghost px-3 py-1.5 text-xs text-live" disabled={busy === key} onClick={() => act(g, "suspend_owner")}>
+                  Suspend @{g.preview.by}
+                </button>
+              )}
+              <button className="btn-ghost px-3 py-1.5 text-xs" disabled={busy === key} onClick={() => act(g, "dismiss")}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

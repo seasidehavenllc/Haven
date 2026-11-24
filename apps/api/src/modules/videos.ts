@@ -10,6 +10,7 @@ import { parse } from "../lib/validate";
 import { notify } from "../notify";
 import { MAX_VIDEO, storeUpload } from "../storage";
 import { probeVideo } from "../storage/probe";
+import { blockedIds, isBlockedBetween } from "./safety";
 
 /**
  * Short-form shoppable videos. Anyone can post; products tagged on a video show as "shop" cards.
@@ -126,10 +127,11 @@ export async function videoRoutes(app: FastifyInstance) {
   app.get("/videos/feed", async (req) => {
     const q = parse(z.object({ tab: z.enum(["foryou", "following"]).default("foryou"), page: z.coerce.number().int().min(0).max(50).default(0), before: z.string().datetime().optional() }), req.query ?? {});
     const userId = req.user?.id ?? null;
+    const hidden = await blockedIds(userId);
     if (q.tab === "following") {
       if (!userId) return { videos: [], next: null };
       const rows = await prisma.video.findMany({
-        where: { status: "READY", creator: { followers: { some: { followerId: userId } } }, ...(q.before ? { createdAt: { lt: new Date(q.before) } } : {}) },
+        where: { status: "READY", creatorId: { notIn: hidden }, creator: { followers: { some: { followerId: userId } } }, ...(q.before ? { createdAt: { lt: new Date(q.before) } } : {}) },
         orderBy: { createdAt: "desc" },
         take: PAGE,
         include: videoInclude,
@@ -140,6 +142,7 @@ export async function videoRoutes(app: FastifyInstance) {
     const ranked = await prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Video"
       WHERE status = 'READY' AND "createdAt" > now() - interval '60 days'
+        AND NOT ("creatorId" = ANY(${hidden}::text[]))
       ORDER BY ("likeCount" * 3 + "commentCount" * 5 + "viewCount" * 0.2 + 1)
                / power(extract(epoch from (now() - "createdAt")) / 3600 + 2, 1.5) DESC, "createdAt" DESC
       OFFSET ${q.page * PAGE} LIMIT ${PAGE}`;
@@ -151,13 +154,14 @@ export async function videoRoutes(app: FastifyInstance) {
 
   app.get("/videos/:id", async (req) => {
     const v = await prisma.video.findFirst({ where: { id: (req.params as any).id, status: "READY" }, include: videoInclude });
-    if (!v) throw notFound("Video");
+    if (!v || (req.user && (await isBlockedBetween(req.user.id, v.creatorId)))) throw notFound("Video");
     return (await present([v], req.user?.id ?? null))[0];
   });
 
   app.get("/users/:handle/videos", async (req) => {
     const user = await prisma.user.findUnique({ where: { handle: (req.params as any).handle }, select: { id: true } });
     if (!user) throw notFound("User");
+    if (req.user && (await isBlockedBetween(req.user.id, user.id))) return [];
     const rows = await prisma.video.findMany({ where: { creatorId: user.id, status: "READY" }, orderBy: { createdAt: "desc" }, take: 60, include: videoInclude });
     return present(rows, req.user?.id ?? null);
   });
@@ -200,8 +204,9 @@ export async function videoRoutes(app: FastifyInstance) {
 
   app.get("/videos/:id/comments", async (req) => {
     const { before } = parse(z.object({ before: z.string().datetime().optional() }), req.query ?? {});
+    const hidden = await blockedIds(req.user?.id);
     return prisma.videoComment.findMany({
-      where: { videoId: (req.params as any).id, hidden: false, ...(before ? { createdAt: { lt: new Date(before) } } : {}) },
+      where: { videoId: (req.params as any).id, hidden: false, userId: { notIn: hidden }, ...(before ? { createdAt: { lt: new Date(before) } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: { user: { select: { id: true, handle: true, displayName: true, avatarUrl: true } } },
@@ -214,6 +219,7 @@ export async function videoRoutes(app: FastifyInstance) {
     const { body } = parse(z.object({ body: z.string().trim().min(1).max(300) }), req.body);
     const v = await prisma.video.findFirst({ where: { id, status: "READY" } });
     if (!v) throw notFound("Video");
+    if (await isBlockedBetween(u.id, v.creatorId)) throw forbidden("You can't comment on this video");
     const c = await prisma.$transaction(async (tx) => {
       const c = await tx.videoComment.create({ data: { videoId: id, userId: u.id, body }, include: { user: { select: { id: true, handle: true, displayName: true, avatarUrl: true } } } });
       await tx.video.update({ where: { id }, data: { commentCount: { increment: 1 } } });

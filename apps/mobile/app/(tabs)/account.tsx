@@ -1,9 +1,38 @@
+import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { api, logout, saveTokens } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { SocialSignIn } from "@/components/SocialSignIn";
 import { Btn, Chip, Empty, ErrorNote, Field, Loading, Money, T, s, useColors } from "@/components/ui";
+
+const SITE = "https://sales.seasidehavenllc.com";
+
+function BlockedPeople() {
+  const c = useColors();
+  const { reload } = useMe();
+  const [open, setOpen] = useState(false);
+  const list = useApi<any[]>(open ? "/me/blocks" : null);
+  return (
+    <View style={{ gap: 6 }}>
+      <Btn kind="ghost" title={open ? "Hide blocked people" : "Blocked people"} onPress={() => setOpen(!open)} />
+      {open &&
+        (list.loading ? (
+          <Loading />
+        ) : !list.data?.length ? (
+          <T size={13} color={c.muted}>You haven't blocked anyone.</T>
+        ) : (
+          list.data.map((b) => (
+            <View key={b.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <T>@{b.handle}</T>
+              <Btn kind="ghost" title="Unblock" onPress={async () => (await api(`/users/${b.handle}/block`, { method: "DELETE" }), await Promise.all([list.reload(), reload()]))} />
+            </View>
+          ))
+        ))}
+    </View>
+  );
+}
 
 export default function Account() {
   const { me, ready } = useMe();
@@ -31,6 +60,13 @@ function AuthForm() {
       <Field label="Email" value={f.email} onChangeText={set("email")} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
       <Field label="Password" value={f.password} onChangeText={set("password")} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} />
       {mode === "register" && <T size={12} color={c.muted}>At least 10 characters.</T>}
+      {mode === "register" && (
+        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/terms`)}>
+          <T size={12} color={c.muted}>
+            By signing up you agree to Haven's <T size={12} color={c.brand}>Terms</T>. Haven has zero tolerance for objectionable content or abusive people.
+          </T>
+        </Pressable>
+      )}
       <ErrorNote error={err} />
       <Btn
         title={mode === "login" ? "Log in" : "Sign up"}
@@ -85,6 +121,16 @@ function Profile() {
         </View>
       ))}
       <Btn kind="ghost" title="Log out" onPress={logout} />
+      <BlockedPeople />
+      <View style={{ flexDirection: "row", gap: 16, justifyContent: "center" }}>
+        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/privacy`)} hitSlop={8}>
+          <T size={13} color={c.muted}>Privacy policy</T>
+        </Pressable>
+        <Pressable onPress={() => WebBrowser.openBrowserAsync(`${SITE}/terms`)} hitSlop={8}>
+          <T size={13} color={c.muted}>Terms</T>
+        </Pressable>
+      </View>
+      <Btn kind="ghost" title="Delete account" onPress={() => router.push("/delete-account")} />
     </ScrollView>
   );
 }

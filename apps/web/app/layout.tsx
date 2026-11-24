@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import { Nav } from "@/components/Nav";
 
 export const metadata: Metadata = {
@@ -23,7 +24,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         )}
         <Nav />
-        <main className="mx-auto max-w-7xl px-4 pb-24 pt-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 pb-16 pt-6">{children}</main>
+        <footer className="border-t border-line">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6 text-xs text-muted">
+            <span>© {new Date().getFullYear()} Seaside Haven LLC</span>
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
+            <Link href="/settings/account" className="hover:text-ink">Account settings</Link>
+          </div>
+        </footer>
       </body>
     </html>
   );

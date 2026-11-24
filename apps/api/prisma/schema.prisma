@@ -21,6 +21,8 @@ enum AccountStatus {
   ACTIVE
   SUSPENDED
   BANNED
+  /// The person deleted their account. Personal details are erased; orders and ledgers stay for the records.
+  DELETED
 }
 
 model User {
@@ -35,6 +37,7 @@ model User {
   status       AccountStatus @default(ACTIVE)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
 
   sessions               Session[]
   oauthAccounts          OAuthAccount[]
@@ -60,6 +63,20 @@ model User {
   auditLogs              AuditLog[]
   sentMessages           DirectMessage[]         @relation("sender")
   recvMessages           DirectMessage[]         @relation("recipient")
+  blocking               UserBlock[]             @relation("blocker")
+  blockedBy              UserBlock[]             @relation("blocked")
+}
+
+/// A person blocked another. Neither sees the other's videos, comments or chat, and they can't interact.
+model UserBlock {
+  blockerId String
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
 }
 
 model Session {
@@ -1014,11 +1031,16 @@ model Report {
   id         String   @id @default(cuid())
   reporterId String
   reporter   User     @relation("reporter", fields: [reporterId], references: [id])
-  targetType String // product | stream | user | message
+  targetType String // video | comment | stream | chat | user | product
   targetId   String
   reason     String
-  status     String   @default("OPEN")
+  status     String   @default("OPEN") // OPEN | ACTIONED | DISMISSED
+  resolvedAt DateTime?
+  resolvedBy String?
   createdAt  DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
 }
 
 model AuditLog {

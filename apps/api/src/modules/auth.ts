@@ -62,6 +62,8 @@ export async function authRoutes(app: FastifyInstance) {
       throw unauthorized();
     }
     if (s.expiresAt < new Date()) throw unauthorized();
+    const owner = await prisma.user.findUnique({ where: { id: s.userId }, select: { status: true } });
+    if (owner?.status !== "ACTIVE") throw unauthorized("This account is not active");
     await prisma.session.update({ where: { id: s.id }, data: { revokedAt: new Date() } });
     return issueSession(s.userId, { ua: req.headers["user-agent"], ip: req.ip });
   });
@@ -78,8 +80,11 @@ export async function authRoutes(app: FastifyInstance) {
       where: { id: u.id },
       include: { seller: { include: { storefront: true, subscription: { include: { plan: true } } } } },
     });
+    // Live chat arrives over the socket, so the apps hide these people's messages themselves.
+    const blocks = await prisma.userBlock.findMany({ where: { OR: [{ blockerId: u.id }, { blockedId: u.id }] }, select: { blockerId: true, blockedId: true } });
     return {
-      user: { ...publicUser(user), email: user.email, bio: user.bio },
+      user: { ...publicUser(user), email: user.email, bio: user.bio, hasPassword: !!user.passwordHash },
+      blockedUserIds: [...new Set(blocks.map((b) => (b.blockerId === u.id ? b.blockedId : b.blockerId)))],
       seller: user.seller
         ? {
             id: user.seller.id,

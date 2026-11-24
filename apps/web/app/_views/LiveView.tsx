@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, newKey } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
+import { SafetyMenu } from "@/components/Safety";
 import { ErrorNote, Loading, ModeBadge, Money, NotConfigured, minPrice, stock } from "@/components/ui";
 
 export default function LiveViewer({ params }: { params: Promise<{ id: string }> }) {
@@ -150,7 +151,10 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
           </div>
         )}
         <div>
-          <h1 className="font-display text-2xl font-bold">{s.title}</h1>
+          <div className="flex items-start gap-2">
+            <h1 className="min-w-0 flex-1 font-display text-2xl font-bold">{s.title}</h1>
+            {me && me.user.id !== s.seller.userId && <SafetyMenu target="stream" targetId={s.id} what="this live stream" />}
+          </div>
           <Link href={`/store/${s.seller.storefront?.slug}`} className="text-sm text-muted">
             {s.seller.businessName}
           </Link>
@@ -182,14 +186,17 @@ export default function LiveViewer({ params }: { params: Promise<{ id: string }>
       <aside className="panel flex h-[70vh] flex-col lg:sticky lg:top-20">
         <div className="border-b border-line p-3 text-sm font-semibold">Chat</div>
         <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-          {chat.map((m) => (
-            <div key={m.id} className={m.isAi ? "rounded-xl bg-ai/10 p-2" : ""}>
+          {chat.filter((m) => !m.userId || !me?.blockedUserIds?.includes(m.userId)).map((m) => (
+            <div key={m.id} className={`group flex items-start gap-1 ${m.isAi ? "rounded-xl bg-ai/10 p-2" : ""}`}>
+              <div className="min-w-0 flex-1">
               <b className={m.isAi ? "text-ai" : ""}>{m.isAi ? "AI assistant" : m.user?.displayName ?? "viewer"}</b> {m.body}
               {m.audioUrl && (
                 <button className="ml-1 text-xs text-ai" title="Play" aria-label="Play what the AI said" onClick={() => new Audio(m.audioUrl).play().catch(() => {})}>
                   🔊
                 </button>
               )}
+              </div>
+              {me && m.userId && m.userId !== me.user.id && m.user?.handle && <SafetyMenu target="chat" targetId={m.id} what="this message" handle={m.user.handle} />}
             </div>
           ))}
           {!chat.length && <div className="text-muted">No messages yet.</div>}

@@ -69,7 +69,7 @@ export default function Videos() {
               }
             }}
           >
-            {videos.map((v) => (
+            {videos.filter((v) => !me?.blockedUserIds?.includes(v.creatorId)).map((v) => (
               <VideoCard key={v.id} v={v} me={me?.user.id ?? null} muted={muted} onToggleMute={() => setMuted(!muted)} onComments={() => setComments(v)} />
             ))}
           </div>
