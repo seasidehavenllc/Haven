@@ -1,5 +1,7 @@
 # Builds the Haven iPhone app on Expo's servers (EAS Build) and, if you tick the box, sends it to
-# App Store Connect / TestFlight. Run it from GitHub → Actions → "Build iOS app" → Run workflow.
+# App Store Connect / TestFlight. It runs by itself when a merge to main changes the iPhone app
+# (apps/mobile or packages/shared), and you can also run it from GitHub → Actions → "Build iOS app" →
+# Run workflow.
 #
 # Needs the repository secret EXPO_TOKEN (expo.dev → Account settings → Access tokens).
 # The app signs with the Apple team already saved in your Expo account. If Expo has never made
@@ -9,6 +11,12 @@
 name: Build iOS app
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/shared/**"
+      - ".github/workflows/ios-build.yml"
   workflow_dispatch:
     inputs:
       profile:
@@ -31,6 +39,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # A merge to main has no inputs, so it builds for the App Store and sends to TestFlight.
+      PROFILE: ${{ inputs.profile || 'production' }}
+      SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
     steps:
       - name: Check the Expo token
         env:
@@ -66,14 +78,14 @@ jobs:
             printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc.p8"
             echo "EXPO_ASC_API_KEY_PATH=$RUNNER_TEMP/asc.p8" >> "$GITHUB_ENV"
           fi
-      - name: Build${{ inputs.submit && inputs.profile == 'production' && ' and submit' || '' }}
+      - name: Build${{ (github.event_name == 'push' || (inputs.submit && inputs.profile == 'production')) && ' and submit' || '' }}
         working-directory: apps/mobile
         env:
           EXPO_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          args="--platform ios --profile ${{ inputs.profile }} --non-interactive --no-wait"
-          if [ "${{ inputs.submit }}" = "true" ] && [ "${{ inputs.profile }}" = "production" ]; then args="$args --auto-submit"; fi
+          args="--platform ios --profile $PROFILE --non-interactive --no-wait"
+          if [ "$SUBMIT" = "true" ] && [ "$PROFILE" = "production" ]; then args="$args --auto-submit"; fi
           eas build $args
           echo "The build is running on Expo. Watch it at https://expo.dev under the Haven project → Builds." >> "$GITHUB_STEP_SUMMARY"

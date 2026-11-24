@@ -32,8 +32,9 @@ The iPhone app is built on Expo's servers (EAS Build) from GitHub. You never nee
 
 ## Each build
 
-GitHub → Actions → **Build iOS app** → Run workflow. Choose `production` and leave "Send the finished
-build" ticked. The finished build goes to TestFlight by itself, using the App Store Connect API key Expo saved
+Merging a pull request to main that changes the iPhone app (`apps/mobile` or `packages/shared`) starts a
+production build and TestFlight upload by itself. To build without a merge, go to GitHub → Actions → **Build
+iOS app** → Run workflow, choose `production` and leave "Send the finished build" ticked. The finished build goes to TestFlight by itself, using the App Store Connect API key Expo saved
 for Haven during the first `eas submit`. The build appears on expo.dev under Haven → Builds after about 15 to 25 minutes. It then
 appears in App Store Connect → TestFlight after Apple finishes processing, which usually takes another
 10 to 30 minutes. Install TestFlight on your iPhone to try it.
