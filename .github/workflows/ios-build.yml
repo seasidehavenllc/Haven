@@ -1,5 +1,6 @@
-# Builds the Haven iPhone app on Expo's servers (EAS Build) and, if you tick the box, sends it to
-# App Store Connect / TestFlight. It runs by itself when a merge to main changes the iPhone app
+# Builds the Haven iPhone app and, if you tick the box, sends it to App Store Connect / TestFlight.
+# By default the build runs on one of GitHub's Macs (EAS "local" build), so it doesn't use Expo's monthly
+# cloud build limit. Pick "expo" under "Where to build" to use Expo's servers instead. It runs by itself when a merge to main changes the iPhone app
 # (apps/mobile or packages/shared), and you can also run it from GitHub → Actions → "Build iOS app" →
 # Run workflow.
 #
@@ -28,6 +29,11 @@ on:
         description: "Send the finished build to App Store Connect (TestFlight)"
         type: boolean
         default: true
+      where:
+        description: "Where to build: github (GitHub's Mac, no Expo build limit) or expo (Expo's servers, uses the monthly limit)"
+        type: choice
+        options: [github, expo]
+        default: github
 
 permissions:
   contents: read
@@ -38,8 +44,11 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # A Mac is needed to build an iPhone app here; Expo's servers only need a small Linux machine to start the build.
+    runs-on: ${{ (inputs.where || 'github') == 'github' && 'macos-26' || 'ubuntu-latest' }}
+    timeout-minutes: 90
     env:
+      WHERE: ${{ inputs.where || 'github' }}
       # A merge to main has no inputs, so it builds for the App Store and sends to TestFlight.
       PROFILE: ${{ inputs.profile || 'production' }}
       SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
@@ -78,7 +87,13 @@ jobs:
             printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc.p8"
             echo "EXPO_ASC_API_KEY_PATH=$RUNNER_TEMP/asc.p8" >> "$GITHUB_ENV"
           fi
-      - name: Build${{ (github.event_name == 'push' || (inputs.submit && inputs.profile == 'production')) && ' and submit' || '' }}
+      - name: Pick the newest Xcode
+        if: env.WHERE == 'github'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build on Expo's servers${{ (github.event_name == 'push' || (inputs.submit && inputs.profile == 'production')) && ' and submit' || '' }}
+        if: env.WHERE == 'expo'
         working-directory: apps/mobile
         env:
           EXPO_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -89,3 +104,30 @@ jobs:
           if [ "$SUBMIT" = "true" ] && [ "$PROFILE" = "production" ]; then args="$args --auto-submit"; fi
           eas build $args
           echo "The build is running on Expo. Watch it at https://expo.dev under the Haven project → Builds." >> "$GITHUB_STEP_SUMMARY"
+      - name: Build on this Mac
+        if: env.WHERE == 'github'
+        working-directory: apps/mobile
+        env:
+          EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        # Signing files come from the Expo account (the same ones Expo's servers use).
+        run: |
+          eas build --platform ios --profile "$PROFILE" --non-interactive --local --output "$RUNNER_TEMP/Haven.ipa"
+          echo "Built the app on GitHub's Mac." >> "$GITHUB_STEP_SUMMARY"
+      - name: Send to TestFlight
+        if: env.WHERE == 'github' && env.SUBMIT == 'true' && env.PROFILE == 'production'
+        working-directory: apps/mobile
+        env:
+          EXPO_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          eas submit --platform ios --profile production --path "$RUNNER_TEMP/Haven.ipa" --non-interactive --wait
+          echo "Sent to App Store Connect. It shows up in TestFlight once Apple finishes processing (usually 5 to 15 minutes)." >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the app file
+        if: env.WHERE == 'github' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Haven-ios
+          path: ${{ runner.temp }}/Haven.ipa
+          if-no-files-found: ignore
+          retention-days: 7
