@@ -6,6 +6,7 @@ import { api, saveTokens } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
 import { Avatar, Btn, Chip, ErrorNote, Field, Icon, Loading, ModeBadge, Notice, T, s, useColors } from "@/components/ui";
 import { GoLive } from "@/components/GoLive";
+import { manageListing } from "@/lib/listing";
 import { SellerApply } from "@/components/SellerApply";
 
 type Photo = { uri: string; mimeType?: string | null; fileName?: string | null };
@@ -80,10 +81,49 @@ function SellerHome() {
         </Link>
       ))}
 
+      <MyProducts key={pending.length} />
+
       {/* Stocking the shop outside a show is secondary: during a show, Sell item does this live. */}
       <Btn kind="ghost" icon={adding ? "chevron-up" : "add"} title={adding ? "Hide" : "Add items to your shop"} onPress={() => setAdding(!adding)} />
       {adding && <AddItems onCreated={() => drafts.reload()} />}
     </ScrollView>
+  );
+}
+
+/** Everything in the seller's shop, hidden ones too, with a menu to hide, show or delete each one. */
+function MyProducts() {
+  const c = useColors();
+  const list = useApi<any[]>("/seller/products");
+  const [all, setAll] = useState(false);
+  const items = (list.data ?? []).filter((p) => p.status === "ACTIVE" || p.status === "DRAFT");
+  if (!items.length) return null;
+  const shown = all ? items : items.slice(0, 5);
+  async function manage(p: any) {
+    const status = await manageListing(p);
+    if (status) list.setData((cur) => (cur ?? []).map((x) => (x.id === p.id ? { ...x, status } : x)));
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <T size={18} weight="700">Your products · {items.length}</T>
+      {shown.map((p) => {
+        const left = p.variants.reduce((n: number, v: any) => n + v.quantity, 0);
+        return (
+          <Pressable key={p.id} onPress={() => router.push(`/p/${p.id}`)} style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 }]}>
+            <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: c.line }}>
+              {p.media?.[0] && <Image source={{ uri: p.media[0].url }} style={{ width: 52, height: 52, opacity: p.status === "DRAFT" ? 0.45 : 1 }} />}
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <T weight="600" lines={1}>{p.title}</T>
+              <T size={12} color={p.status === "DRAFT" ? c.warn : c.muted}>{p.status === "DRAFT" ? "Hidden from your shop" : left === 0 ? "Sold out" : `${left} in stock`}</T>
+            </View>
+            <Pressable onPress={() => manage(p)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Hide or delete ${p.title}`} style={{ padding: 6 }}>
+              <Icon name="ellipsis-horizontal" size={20} color={c.muted} />
+            </Pressable>
+          </Pressable>
+        );
+      })}
+      {items.length > 5 && <Btn kind="ghost" title={all ? "Show fewer" : `See all ${items.length}`} onPress={() => setAll(!all)} />}
+    </View>
   );
 }
 

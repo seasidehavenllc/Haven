@@ -122,3 +122,20 @@ describe("follower lists", () => {
     expect((await s.call("GET", `/users/${handle}/followers`)).json.users.map((u: any) => u.handle)).toEqual([`u_${a.tag}`]);
   });
 });
+
+describe("removing listings", () => {
+  it("hides or deletes a listing from the shop and from an open show", async () => {
+    const { s, p, id, handle } = await liveShow();
+    const anon = await client();
+    expect((await s.call("PATCH", `/seller/products/${p.id}`, { status: "DRAFT" })).status).toBe(200);
+    expect((await anon("GET", `/users/${handle}/products`)).json.total).toBe(0);
+    expect((await anon("GET", `/streams/${id}`)).json.products.filter((x: any) => !x.hidden).length).toBe(0);
+    await s.call("PATCH", `/seller/products/${p.id}`, { status: "ACTIVE" });
+    expect((await anon("GET", `/users/${handle}/products`)).json.total).toBe(1);
+    await s.call("PATCH", `/seller/products/${p.id}`, { status: "ARCHIVED" });
+    expect((await anon("GET", `/users/${handle}/products`)).json.total).toBe(0);
+    expect((await anon("GET", `/products/${p.id}`)).status).toBe(404);
+    const b = await buyer();
+    expect((await b.call("PATCH", `/seller/products/${p.id}`, { status: "ACTIVE" })).status).toBe(403);
+  });
+});

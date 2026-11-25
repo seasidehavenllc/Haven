@@ -5,6 +5,7 @@ import { formatMoney } from "@haven/shared";
 import { api } from "@/lib/api";
 import { useApi, useMe } from "@/lib/hooks";
 import { block, choose, report } from "@/lib/safety";
+import { manageListing } from "@/lib/listing";
 import { SITE } from "@/components/LiveShow";
 import { Avatar, Empty, ErrorNote, Icon, Loading, T, minPrice, stock, useColors } from "@/components/ui";
 
@@ -289,7 +290,7 @@ export default function Profile() {
             shop.loading ? <ActivityIndicator color={c.brand} style={{ marginTop: 20 }} /> : <Empty title={shop.q ? `Nothing matches "${shop.q}"` : "No products yet"}>{shop.q ? "Try another word, like a color or size." : p.isMe ? "Products you list show up here." : "Check back soon."}</Empty>
           }
           ListFooterComponent={shop.loading && shop.items.length ? <ActivityIndicator color={c.brand} /> : undefined}
-          renderItem={({ item }) => <ShopCard p={item} width={shopTile} onAdd={p.isMe ? undefined : () => addToCart(item)} />}
+          renderItem={({ item }) => <ShopCard p={item} width={shopTile} onAdd={p.isMe ? undefined : () => addToCart(item)} onManage={p.isMe ? async () => { if (await manageListing(item)) shop.remove(item.id); } : undefined} />}
         />
       ) : current === "videos" ? (
         <FlatList
@@ -367,7 +368,12 @@ function useShop(handle: string, enabled: boolean) {
     return () => clearTimeout(t);
   }, [typed]);
 
-  return { q, typed, setTyped, sort, setSort, items, total, loading, more: () => next != null && !loading && load(next) };
+  // Drop a listing the seller just hid or deleted from their own shop.
+  const remove = (id: string) => {
+    setItems((cur) => cur.filter((x) => x.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
+  };
+  return { q, typed, setTyped, sort, setSort, items, total, loading, remove, more: () => next != null && !loading && load(next) };
 }
 
 function ShopTools({ shop }: { shop: ReturnType<typeof useShop> }) {
@@ -405,7 +411,7 @@ function ShopTools({ shop }: { shop: ReturnType<typeof useShop> }) {
   );
 }
 
-function ShopCard({ p, width, onAdd }: { p: any; width: number; onAdd?: () => void }) {
+function ShopCard({ p, width, onAdd, onManage }: { p: any; width: number; onAdd?: () => void; onManage?: () => void }) {
   const c = useColors();
   const left = stock(p);
   const price = minPrice(p);
@@ -417,6 +423,11 @@ function ShopCard({ p, width, onAdd }: { p: any; width: number; onAdd?: () => vo
           <View style={{ position: "absolute", top: 8, left: 8, backgroundColor: "#000a", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
             <T size={11} weight="800" color="#fff">SOLD OUT</T>
           </View>
+        )}
+        {onManage && (
+          <Pressable onPress={onManage} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Hide or delete ${p.title}`} style={{ position: "absolute", top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: "#000000aa", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="ellipsis-horizontal" size={18} color="#fff" />
+          </Pressable>
         )}
       </View>
       <View style={{ padding: 10, gap: 3 }}>

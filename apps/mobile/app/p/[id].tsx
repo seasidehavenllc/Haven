@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, useWindowDimensions, View } from "react-n
 import { api } from "@/lib/api";
 import { useApi, useMe, useRealtime } from "@/lib/hooks";
 import { report } from "@/lib/safety";
+import { confirmDelete, setShown } from "@/lib/listing";
 import { Btn, Chip, ErrorNote, Loading, Money, Notice, T, s, useColors } from "@/components/ui";
 
 export default function ProductScreen() {
@@ -53,6 +54,37 @@ export default function ProductScreen() {
           <Pressable hitSlop={8} accessibilityLabel="Report this listing" onPress={() => report("product", p.id, "this listing")} style={{ alignSelf: "flex-start" }}>
             <T size={12} color={c.muted}>Report listing</T>
           </Pressable>
+        )}
+        {me?.seller?.id === p.sellerId && (
+          <View style={[s.card, { borderColor: c.line, backgroundColor: c.card, gap: 10 }]}>
+            <T size={13} color={c.muted}>
+              {p.status === "ACTIVE" ? "This is your listing. Buyers can see it in your shop." : p.status === "DRAFT" ? "This listing is hidden. Buyers can't see it." : "You deleted this listing."}
+            </T>
+            {p.status !== "ARCHIVED" && (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Btn
+                  kind="ghost"
+                  icon={p.status === "DRAFT" ? "eye-outline" : "eye-off-outline"}
+                  title={p.status === "DRAFT" ? "Show in shop" : "Hide from shop"}
+                  busy={busy}
+                  style={{ flex: 1 }}
+                  onPress={async () => {
+                    setBusy(true);
+                    try {
+                      const shown = p.status === "DRAFT";
+                      await setShown(p.id, shown);
+                      setData((d: any) => ({ ...d, product: { ...d.product, status: shown ? "ACTIVE" : "DRAFT" } }));
+                    } catch (e) {
+                      setErr(e);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+                <Btn kind="danger" icon="trash-outline" title="Delete" style={{ flex: 1 }} onPress={async () => { if (await confirmDelete(p)) router.back(); }} />
+              </View>
+            )}
+          </View>
         )}
         {p.variants.length > 1 && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
