@@ -737,6 +737,10 @@ model StreamChatMessage {
   /// Spoken version of an AI message (text to speech), played to viewers who have sound on.
   audioUrl  String?
   hidden    Boolean    @default(false)
+  /// The message this one answers ("Replying to …"), from the same show.
+  replyToId String?
+  replyTo   StreamChatMessage?  @relation("chatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   StreamChatMessage[] @relation("chatReplies")
   createdAt DateTime   @default(now())
 
   @@index([streamId, createdAt])

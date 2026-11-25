@@ -36,7 +36,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Shop", headerTitle: () => <BrandTitle />, tabBarIcon: icon("storefront") }} />
       <Tabs.Screen name="videos" options={{ title: "Videos", headerShown: false, tabBarIcon: icon("play-circle") }} />
-      <Tabs.Screen name="live" options={{ title: "Live", tabBarIcon: icon("radio") }} />
+      <Tabs.Screen name="live" options={{ title: "Live", headerShown: false, tabBarIcon: icon("radio"), tabBarStyle: { backgroundColor: "#000", borderTopColor: "#000" } }} />
       <Tabs.Screen name="sell" options={{ title: "Sell", tabBarIcon: icon("add-circle") }} />
       <Tabs.Screen
         name="account"
