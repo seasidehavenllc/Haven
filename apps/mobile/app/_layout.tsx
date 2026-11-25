@@ -72,6 +72,12 @@ function Splash() {
   const c = useColors();
   const { offline, reload } = useMe();
   const [busy, setBusy] = useState(false);
+  // Never just spin: if the check takes longer than it should, offer a retry.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 12_000);
+    return () => clearTimeout(t);
+  }, []);
   const retry = useCallback(async () => {
     setBusy(true);
     try {
@@ -98,6 +104,12 @@ function Splash() {
       {offline ? (
         <>
           <T color={c.muted} style={{ textAlign: "center" }}>{busy ? "Connecting to Haven…" : friendlyError(offline)}</T>
+          <Btn title="Try again" busy={busy} onPress={retry} style={{ alignSelf: "stretch" }} />
+        </>
+      ) : slow ? (
+        <>
+          <ActivityIndicator color={c.brand} />
+          <T color={c.muted} style={{ textAlign: "center" }}>This is taking longer than usual.</T>
           <Btn title="Try again" busy={busy} onPress={retry} style={{ alignSelf: "stretch" }} />
         </>
       ) : (

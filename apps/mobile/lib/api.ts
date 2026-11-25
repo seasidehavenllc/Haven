@@ -38,19 +38,27 @@ export class ApiError extends Error {
 }
 
 let refreshing: Promise<boolean> | null = null;
+/**
+ * Swap the refresh token for a new sign-in. Resolves false only when the server rejected it (signed out).
+ * A network failure or timeout throws instead, so a bad connection never signs anyone out, and the shared
+ * promise is always cleared so one stuck request can't leave every later call waiting on it.
+ */
 async function refresh(): Promise<boolean> {
   const t = await read();
   if (!t?.refreshToken) return false;
-  refreshing ??= fetch(`${API_URL}/auth/refresh`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ refreshToken: t.refreshToken }) })
+  refreshing ??= send(`${API_URL}/auth/refresh`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ refreshToken: t.refreshToken }) })
     .then(async (r) => {
-      if (!r.ok) {
+      if (r.status === 401 || r.status === 403) {
         await clearTokens();
         return false;
       }
+      if (!r.ok) throw new Error(`Couldn't refresh sign-in (${r.status})`);
       await saveTokens(await r.json());
       return true;
     })
-    .finally(() => setTimeout(() => (refreshing = null), 0));
+    .finally(() => {
+      refreshing = null;
+    });
   return refreshing;
 }
 
@@ -78,10 +86,10 @@ export async function api<T = any>(path: string, init: { method?: string; body?:
   return json as T;
 }
 
-/** One request that gives up after 30 seconds instead of spinning forever. Network failures throw a plain Error. */
+/** One request that gives up after 20 seconds instead of spinning forever. Network failures throw a plain Error. */
 async function send(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<Response> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  const timer = setTimeout(() => ctrl.abort(), 20_000);
   try {
     return await fetch(url, { ...init, signal: ctrl.signal });
   } catch (e: any) {
