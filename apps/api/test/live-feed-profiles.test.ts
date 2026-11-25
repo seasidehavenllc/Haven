@@ -87,3 +87,38 @@ describe("profiles with a shop", () => {
     expect(page.json.next).toBe(2);
   });
 });
+
+describe("editing your profile", () => {
+  it("changes name, username, bio and photos, and refuses a taken username", async () => {
+    const a = await buyer();
+    const b = await buyer();
+    const r = await a.call("PATCH", "/me/profile", { displayName: "Kody", handle: `New_${a.tag}`, bio: "I sell flannel", avatarUrl: "https://example.com/a.jpg", coverUrl: "https://example.com/c.jpg" });
+    expect(r.status).toBe(200);
+    expect(r.json.user.handle).toBe(`new_${a.tag}`);
+    const p = await (await client())("GET", `/users/new_${a.tag}`);
+    expect(p.json).toMatchObject({ displayName: "Kody", bio: "I sell flannel", avatarUrl: "https://example.com/a.jpg", coverUrl: "https://example.com/c.jpg" });
+    expect((await a.call("GET", "/me")).json.user.coverUrl).toBe("https://example.com/c.jpg");
+    expect((await b.call("PATCH", "/me/profile", { handle: `new_${a.tag}` })).status).toBe(409);
+    expect((await b.call("PATCH", "/me/profile", { handle: "bad name!" })).status).toBe(400);
+    expect((await a.call("PATCH", "/me/profile", { coverUrl: null })).json.user.coverUrl).toBeNull();
+  });
+});
+
+describe("follower lists", () => {
+  it("lists followers and following with who you follow, and leaves out blocked people", async () => {
+    const { s, handle } = await liveShow();
+    const a = await buyer();
+    const b = await buyer();
+    await a.call("POST", `/users/${s.userId}/follow`);
+    await b.call("POST", `/users/${s.userId}/follow`);
+    await s.call("POST", `/users/${a.userId}/follow`);
+    const followers = await a.call("GET", `/users/${handle}/followers`);
+    expect(followers.json.total).toBe(2);
+    expect(followers.json.users.map((u: any) => u.handle).sort()).toEqual([`u_${a.tag}`, `u_${b.tag}`].sort());
+    expect(followers.json.users.find((u: any) => u.handle === `u_${a.tag}`).isMe).toBe(true);
+    const following = await b.call("GET", `/users/u_${a.tag}/following`);
+    expect(following.json.users[0]).toMatchObject({ handle, isSeller: true, followedByMe: true });
+    await s.call("POST", `/users/u_${b.tag}/block`);
+    expect((await s.call("GET", `/users/${handle}/followers`)).json.users.map((u: any) => u.handle)).toEqual([`u_${a.tag}`]);
+  });
+});

@@ -51,17 +51,21 @@ function Profile() {
   const u = me!.user;
   return (
     <ScrollView contentContainerStyle={s.screen}>
-      <View style={[s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", gap: 14 }]}>
+      <Pressable
+        onPress={() => router.push(`/u/${u.handle}`)}
+        accessibilityRole="button"
+        accessibilityLabel="Open your profile"
+        style={({ pressed }) => [s.card, { borderColor: c.line, backgroundColor: c.card, flexDirection: "row", alignItems: "center", gap: 14, opacity: pressed ? 0.8 : 1 }]}
+      >
         <Avatar uri={u.avatarUrl} name={u.displayName} size={60} />
         <View style={{ flex: 1, gap: 2 }}>
           <T size={20} weight="800" lines={1}>{u.displayName}</T>
           <T color={c.muted} lines={1}>@{u.handle}</T>
           {me!.seller && <T size={13} color={c.brandLight} lines={1}>{me!.seller.businessName}{me!.seller.plan ? ` · ${me!.seller.plan.name} plan` : ""}</T>}
         </View>
-        <Pressable onPress={() => router.push(`/u/${u.handle}`)} hitSlop={8} accessibilityLabel="View your public profile">
-          <Icon name="open-outline" size={20} color={c.muted} />
-        </Pressable>
-      </View>
+        <Icon name="chevron-forward" size={20} color={c.muted} />
+      </Pressable>
+      <Btn title="Edit profile" kind="ghost" icon="create-outline" onPress={() => router.push("/profile/edit")} />
 
       {me!.canSell && <GoLive compact />}
 

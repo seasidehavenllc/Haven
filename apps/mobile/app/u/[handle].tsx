@@ -1,4 +1,4 @@
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Platform, Pressable, ScrollView, Share, TextInput, View, useWindowDimensions } from "react-native";
 import { formatMoney } from "@haven/shared";
@@ -32,6 +32,16 @@ export default function Profile() {
   const shop = useShop(handle!, !!profile.data?.seller && !profile.data?.blocked);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
+  // Coming back from Edit profile or a follower list: show the latest. A changed username moves this screen to the new one.
+  const first = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (first.current) return void (first.current = false);
+      if (profile.data?.isMe && me && me.user.handle !== handle) router.setParams({ handle: me.user.handle });
+      else profile.reload();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile.data?.isMe, me?.user.handle, handle]),
+  );
   const say = (m: string) => {
     setToast(m);
     clearTimeout(toastTimer.current);
@@ -43,6 +53,7 @@ export default function Profile() {
   const p = profile.data;
   const seller = p.blocked ? null : p.seller;
   const current: Tab = tab ?? (seller ? "shop" : "videos");
+  const cover: string | null = p.blocked ? null : p.coverUrl ?? seller?.storefront?.bannerUrl ?? null;
   const tabs: Tab[] = seller ? ["shop", "videos", "about"] : ["videos", "about"];
 
   async function toggleFollow() {
@@ -94,9 +105,14 @@ export default function Profile() {
     <View style={{ gap: 14, paddingBottom: 6 }}>
       {/* Banner and photo. A live seller gets a ring and a LIVE tag on their photo; tap it to watch. */}
       <View>
-        <View style={{ height: seller ? 120 : 70, marginHorizontal: -16, backgroundColor: c.brand + "33", overflow: "hidden" }}>
-          {seller?.storefront?.bannerUrl ? (
-            <Image source={{ uri: seller.storefront.bannerUrl }} style={{ width: "100%", height: "100%" }} />
+        <Pressable
+          disabled={!p.isMe}
+          onPress={() => router.push("/profile/edit")}
+          accessibilityLabel={p.isMe ? "Change your cover photo" : undefined}
+          style={{ height: seller || cover ? 130 : 80, marginHorizontal: -16, backgroundColor: c.brand + "33", overflow: "hidden" }}
+        >
+          {cover ? (
+            <Image source={{ uri: cover }} style={{ width: "100%", height: "100%" }} />
           ) : (
             <View style={{ flex: 1, flexDirection: "row" }}>
               <View style={{ flex: 1, backgroundColor: c.brand + "40" }} />
@@ -104,12 +120,27 @@ export default function Profile() {
               <View style={{ flex: 1, backgroundColor: c.live + "30" }} />
             </View>
           )}
-        </View>
+          {p.isMe && (
+            <View style={{ position: "absolute", right: 12, top: 10, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#000000aa", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+              <Icon name="camera" size={13} color="#fff" />
+              <T size={12} weight="700" color="#fff">{cover ? "Edit cover" : "Add cover"}</T>
+            </View>
+          )}
+        </Pressable>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12, marginTop: -44 }}>
-          <Pressable disabled={!seller?.liveNow} onPress={() => seller?.liveNow && router.push(`/live/${seller.liveNow.id}`)} accessibilityLabel={seller?.liveNow ? `${p.displayName} is live. Watch now` : undefined}>
+          <Pressable
+            disabled={!seller?.liveNow && !p.isMe}
+            onPress={() => (seller?.liveNow ? router.push(`/live/${seller.liveNow.id}`) : router.push("/profile/edit"))}
+            accessibilityLabel={seller?.liveNow ? `${p.displayName} is live. Watch now` : p.isMe ? "Change your profile photo" : undefined}
+          >
             <View style={{ borderRadius: 999, borderWidth: 3, borderColor: seller?.liveNow ? c.live : c.paper, padding: 2, backgroundColor: c.paper }}>
               <Avatar uri={p.avatarUrl} name={p.displayName} size={88} />
             </View>
+            {p.isMe && !seller?.liveNow && (
+              <View style={{ position: "absolute", right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: c.brand, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: c.paper }}>
+                <Icon name="camera" size={14} color="#fff" />
+              </View>
+            )}
             {seller?.liveNow && (
               <View style={{ position: "absolute", bottom: -6, alignSelf: "center", backgroundColor: c.live, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 2, borderColor: c.paper }}>
                 <T size={11} weight="800" color="#fff">LIVE</T>
@@ -132,8 +163,12 @@ export default function Profile() {
       </View>
 
       <View style={{ flexDirection: "row", gap: 14 }}>
-        <T size={14}><T size={14} weight="800">{compact(p.followerCount)}</T> <T size={14} color={c.muted}>{p.followerCount === 1 ? "follower" : "followers"}</T></T>
-        <T size={14}><T size={14} weight="800">{compact(p.followingCount)}</T> <T size={14} color={c.muted}>following</T></T>
+        <Pressable onPress={() => router.push(`/follows/${p.handle}?tab=followers`)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${p.followerCount} followers. See who`}>
+          <T size={14}><T size={14} weight="800">{compact(p.followerCount)}</T> <T size={14} color={c.muted}>{p.followerCount === 1 ? "follower" : "followers"}</T></T>
+        </Pressable>
+        <Pressable onPress={() => router.push(`/follows/${p.handle}?tab=following`)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Following ${p.followingCount}. See who`}>
+          <T size={14}><T size={14} weight="800">{compact(p.followingCount)}</T> <T size={14} color={c.muted}>following</T></T>
+        </Pressable>
         {seller?.stats?.rating != null && (
           <T size={14}><Icon name="star" size={13} color={c.warn} /> <T size={14} weight="800">{seller.stats.rating.toFixed(1)}</T> <T size={14} color={c.muted}>({seller.stats.reviewCount})</T></T>
         )}
@@ -147,7 +182,10 @@ export default function Profile() {
       {/* Actions. */}
       <View style={{ flexDirection: "row", gap: 8 }}>
         {p.isMe ? (
-          <Pill icon="settings-outline" label="Settings" onPress={() => router.push("/account")} grow />
+          <>
+            <Pill icon="create-outline" label="Edit profile" onPress={() => router.push("/profile/edit")} tone="brand" grow />
+            <Pill icon="settings-outline" label="" onPress={() => router.push("/account")} accessibilityLabel="Settings" />
+          </>
         ) : (
           !p.blocked && <Pill icon={p.followedByMe ? "checkmark" : "add"} label={p.followedByMe ? "Following" : "Follow"} onPress={toggleFollow} tone={p.followedByMe ? "quiet" : "brand"} grow />
         )}

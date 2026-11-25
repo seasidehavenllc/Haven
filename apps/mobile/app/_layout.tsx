@@ -56,6 +56,8 @@ function AppStack() {
         <Stack.Screen name="auctions/index" options={{ title: "Auctions" }} />
         <Stack.Screen name="auctions/[id]" options={{ title: "Auction" }} />
         <Stack.Screen name="u/[handle]" options={{ title: "" }} />
+        <Stack.Screen name="profile/edit" options={{ title: "Edit profile" }} />
+        <Stack.Screen name="follows/[handle]" options={{ title: "" }} />
         <Stack.Screen name="video/[id]" options={{ title: "", headerTransparent: true }} />
         <Stack.Screen name="video/new" options={{ title: "Post a video" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
