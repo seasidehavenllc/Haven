@@ -26,13 +26,13 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
 }
 
 export type Me = {
-  user: { id: string; handle: string; displayName: string; avatarUrl?: string | null; roles: string[]; email: string; hasPassword?: boolean; staffRole?: "OWNER" | "MANAGER" | "SUPPORT" | null };
+  user: { id: string; handle: string; displayName: string; avatarUrl?: string | null; coverUrl?: string | null; bio?: string | null; roles: string[]; email: string; hasPassword?: boolean; staffRole?: "OWNER" | "MANAGER" | "SUPPORT" | null };
   /** People this account blocked or was blocked by. Their content is hidden both ways. */
   blockedUserIds?: string[];
   /** The approved-seller check: true only when Haven approved this person to sell and go live. */
   canSell?: boolean;
   sellerApplication?: { status: "DRAFT" | "SUBMITTED" | "NEEDS_INFO" | "APPROVED" | "REJECTED"; decisionNote: string | null } | null;
-  seller: null | { id: string; businessName: string; status?: string; storefront: { slug: string; name: string } | null; plan: { key: string; name: string } | null; aiDisabled: boolean };
+  seller: null | { id: string; businessName: string; status?: string; storefront: { slug: string; name: string; description?: string | null; shippingPolicy?: string | null; returnPolicy?: string | null; logoUrl?: string | null; bannerUrl?: string | null } | null; plan: { key: string; name: string } | null; aiDisabled: boolean };
 };
 
 type MeState = {

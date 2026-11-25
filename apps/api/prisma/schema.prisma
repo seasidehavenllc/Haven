@@ -39,6 +39,7 @@ model User {
   handle       String        @unique
   displayName  String
   avatarUrl    String?
+  coverUrl     String?
   bio          String?
   roles        Role[]        @default([BUYER])
   staffRole    StaffRole?

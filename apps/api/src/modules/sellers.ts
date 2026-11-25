@@ -100,6 +100,7 @@ export async function sellerRoutes(app: FastifyInstance) {
         handle: true,
         displayName: true,
         avatarUrl: true,
+        coverUrl: true,
         bio: true,
         createdAt: true,
         seller: {
@@ -181,6 +182,57 @@ export async function sellerRoutes(app: FastifyInstance) {
     const end = q.offset + products.length;
     return { products, total, next: end < total ? end : null };
   });
+
+  /** Change your own name, username, bio, profile photo and cover photo. Send only what changes; null clears a photo or bio. */
+  app.patch("/me/profile", async (req) => {
+    const u = requireUser(req);
+    const photo = z.string().trim().url().max(1000).nullable().optional();
+    const input = parse(
+      z.object({
+        displayName: z.string().trim().min(1).max(60).optional(),
+        handle: z.string().trim().toLowerCase().min(3).max(30).regex(/^[a-z0-9_]+$/, "Use lowercase letters, numbers and underscores").optional(),
+        bio: z.string().trim().max(300).nullable().optional(),
+        avatarUrl: photo,
+        coverUrl: photo,
+      }),
+      req.body ?? {},
+    );
+    if (input.handle) {
+      const taken = await prisma.user.findFirst({ where: { handle: input.handle, NOT: { id: u.id } }, select: { id: true } });
+      if (taken) throw conflict("That username is taken");
+    }
+    const data = { ...input, ...(input.bio === "" ? { bio: null } : {}) };
+    const user = await prisma.user.update({ where: { id: u.id }, data, select: { id: true, handle: true, displayName: true, avatarUrl: true, coverUrl: true, bio: true } });
+    return { user };
+  });
+
+  /** Who follows someone, or who they follow, newest first. Blocked people are left out. */
+  for (const kind of ["followers", "following"] as const) {
+    app.get(`/users/:handle/${kind}`, async (req) => {
+      const q = parse(z.object({ offset: z.coerce.number().int().min(0).max(10000).default(0), limit: z.coerce.number().int().min(1).max(100).default(50) }), req.query ?? {});
+      const u = await prisma.user.findUnique({ where: { handle: (req.params as { handle: string }).handle }, select: { id: true } });
+      if (!u) throw notFound("User");
+      const hidden = req.user
+        ? (await prisma.userBlock.findMany({ where: { OR: [{ blockerId: req.user.id }, { blockedId: req.user.id }] }, select: { blockerId: true, blockedId: true } })).map((b) =>
+            b.blockerId === req.user!.id ? b.blockedId : b.blockerId,
+          )
+        : [];
+      const person = { status: "ACTIVE" as const, id: { notIn: hidden } };
+      const where = kind === "followers" ? { followeeId: u.id, follower: person } : { followerId: u.id, followee: person };
+      const sel = { select: { id: true, handle: true, displayName: true, avatarUrl: true, bio: true, seller: { select: { status: true } } } };
+      const [rows, total] = await Promise.all([
+        prisma.follow.findMany({ where, orderBy: { createdAt: "desc" }, skip: q.offset, take: q.limit, include: kind === "followers" ? { follower: sel } : { followee: sel } }),
+        prisma.follow.count({ where }),
+      ]);
+      type Person = { id: string; handle: string; displayName: string; avatarUrl: string | null; bio: string | null; seller: { status: string } | null };
+      const people = rows.map((r) => ((r as { follower?: Person }).follower ?? (r as { followee?: Person }).followee) as Person);
+      const mine = req.user ? await prisma.follow.findMany({ where: { followerId: req.user.id, followeeId: { in: people.map((p) => p.id) } }, select: { followeeId: true } }) : [];
+      const followed = new Set(mine.map((m) => m.followeeId));
+      const users = people.map(({ seller, ...p }) => ({ ...p, isSeller: seller?.status === "APPROVED", followedByMe: followed.has(p.id), isMe: req.user?.id === p.id }));
+      const end = q.offset + users.length;
+      return { users, total, next: end < total ? end : null };
+    });
+  }
 
   app.post("/users/:id/follow", async (req) => {
     const u = requireUser(req);

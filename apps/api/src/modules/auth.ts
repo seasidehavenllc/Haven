@@ -83,7 +83,7 @@ export async function authRoutes(app: FastifyInstance) {
     // Live chat arrives over the socket, so the apps hide these people's messages themselves.
     const blocks = await prisma.userBlock.findMany({ where: { OR: [{ blockerId: u.id }, { blockedId: u.id }] }, select: { blockerId: true, blockedId: true } });
     return {
-      user: { ...publicUser(user), email: user.email, bio: user.bio, hasPassword: !!user.passwordHash, staffRole: user.status === "ACTIVE" ? user.staffRole : null },
+      user: { ...publicUser(user), email: user.email, bio: user.bio, coverUrl: user.coverUrl, hasPassword: !!user.passwordHash, staffRole: user.status === "ACTIVE" ? user.staffRole : null },
       /** The approved-seller check: true only when staff approved this person to sell and go live. */
       canSell: user.seller?.status === "APPROVED",
       sellerApplication: user.sellerApplication,
