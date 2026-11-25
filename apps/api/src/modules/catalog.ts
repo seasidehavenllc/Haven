@@ -113,7 +113,10 @@ export async function catalogRoutes(app: FastifyInstance) {
     const p = await prisma.product.findFirst({ where: { id, sellerId: seller.id } });
     if (!p) throw notFound("Product");
     const input = parse(ProductInput.omit({ variants: true, imageUrls: true }).partial().extend({ liveMenuEnabled: z.boolean().optional(), status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional() }), req.body);
-    return prisma.product.update({ where: { id }, data: { ...input, tags: input.tags?.map((t) => t.toLowerCase()) }, include: productInclude });
+    const updated = await prisma.product.update({ where: { id }, data: { ...input, tags: input.tags?.map((t) => t.toLowerCase()) }, include: productInclude });
+    // A hidden or deleted listing also comes off the menu of any show that isn't over.
+    if (input.status && input.status !== "ACTIVE") await prisma.streamProduct.updateMany({ where: { productId: id, stream: { status: { not: "ENDED" } } }, data: { hidden: true } });
+    return updated;
   });
 
   /** Set absolute stock for a variant; logged as an inventory event and broadcast everywhere. */
