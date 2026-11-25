@@ -51,6 +51,16 @@ const menuInclude = {
   },
 };
 
+/** A chat line as the app shows it: who wrote it, their photo, and the message it answers (if any). */
+const chatInclude = {
+  user: { select: { handle: true, displayName: true, avatarUrl: true } },
+  replyTo: { select: { id: true, body: true, hidden: true, isAi: true, userId: true, user: { select: { handle: true, displayName: true } } } },
+};
+
+/** Drops the quoted message when it was hidden by the host or written by someone the viewer blocked. */
+const cleanReply = <M extends { replyTo?: { hidden: boolean; userId: string | null } | null }>(m: M, hidden: string[] = []) =>
+  m.replyTo && (m.replyTo.hidden || (m.replyTo.userId && hidden.includes(m.replyTo.userId))) ? { ...m, replyTo: null } : m;
+
 async function ownStream(sellerId: string, id: string) {
   const s = await prisma.livestream.findFirst({ where: { id, sellerId } });
   if (!s) throw notFound("Stream");
@@ -126,7 +136,11 @@ export async function streamRoutes(app: FastifyInstance) {
     const rows = await prisma.livestream.findMany({
       where: { status: { in: ["LIVE", "PAUSED", "SCHEDULED"] }, seller: { status: "APPROVED" } },
       orderBy: [{ status: "asc" }, { scheduledFor: "asc" }],
-      include: { seller: { select: { businessName: true, storefront: { select: { slug: true, logoUrl: true } } } }, products: { take: 1, include: { product: { include: { media: { take: 1 } } } } } },
+      include: {
+        seller: { select: { businessName: true, userId: true, storefront: { select: { slug: true, name: true, logoUrl: true } }, user: { select: { handle: true, displayName: true, avatarUrl: true } } } },
+        products: { where: { hidden: false }, orderBy: { position: "asc" }, take: 1, include: { product: { include: { media: { orderBy: { position: "asc" }, take: 1 } } } } },
+        _count: { select: { products: { where: { hidden: false } } } },
+      },
       take: 50,
     });
     return rows.map((s) => ({ ...s, viewers: viewerCount(s.id) }));
@@ -141,12 +155,13 @@ export async function streamRoutes(app: FastifyInstance) {
         ...menuInclude,
         seller: { select: { id: true, userId: true, businessName: true, storefront: { select: { slug: true, name: true, logoUrl: true } }, user: { select: { handle: true, displayName: true, avatarUrl: true } } } },
         aiAgent: { select: { name: true, personality: true, voiceId: true } },
-        chat: { where: { hidden: false, OR: [{ userId: null }, { userId: { notIn: hidden } }] }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { handle: true, displayName: true } } } },
+        chat: { where: { hidden: false, OR: [{ userId: null }, { userId: { notIn: hidden } }] }, orderBy: { createdAt: "desc" }, take: 50, include: chatInclude },
         auctions: { where: { status: { in: ["LIVE", "SCHEDULED"] } } },
       },
     });
     if (!s) throw notFound("Stream");
     const isOwner = req.user?.sellerId === s.sellerId;
+    const followingHost = req.user ? !!(await prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: req.user.id, followeeId: s.seller.userId } } })) : false;
     const pinnedMessage = s.pinnedMessageId
       ? await prisma.streamChatMessage.findFirst({ where: { id: s.pinnedMessageId, hidden: false }, include: { user: { select: { handle: true, displayName: true } } } })
       : null;
@@ -158,8 +173,9 @@ export async function streamRoutes(app: FastifyInstance) {
     return {
       ...s,
       products: isOwner ? s.products : s.products.filter((p) => !p.hidden),
-      chat: s.chat.reverse(),
+      chat: s.chat.reverse().map((m) => cleanReply(m, hidden)),
       pinnedMessage,
+      followingHost,
       /** The host sees everyone they muted in this show; a viewer only learns whether they are muted. */
       ...(isOwner ? { mutedUserIds: mutes.map((m) => m.userId) } : { youAreMuted: mutes.length > 0 }),
       viewers: viewerCount(s.id),
@@ -345,13 +361,15 @@ export async function streamRoutes(app: FastifyInstance) {
   // ── Chat ──
   app.post("/streams/:id/chat", { config: { rateLimit: { max: 20, timeWindow: "30 seconds" } } }, async (req) => {
     const u = requireUser(req);
-    const { body } = parse(z.object({ body: z.string().trim().min(1).max(500) }), req.body);
+    const { body, replyToId } = parse(z.object({ body: z.string().trim().min(1).max(500), replyToId: z.string().min(1).max(64).optional() }), req.body);
     const s = await prisma.livestream.findUnique({ where: { id: (req.params as any).id } });
     if (!s || !["LIVE", "PAUSED"].includes(s.status)) throw conflict("Chat is closed");
     const host = await prisma.sellerAccount.findUniqueOrThrow({ where: { id: s.sellerId }, select: { userId: true } });
     if (await isBlockedBetween(u.id, host.userId)) throw forbidden("You can't chat in this stream");
     if (await prisma.streamMute.findUnique({ where: { streamId_userId: { streamId: s.id, userId: u.id } } })) throw forbidden("The host muted you in this show. You can still watch and buy.");
-    const msg = await prisma.streamChatMessage.create({ data: { streamId: s.id, userId: u.id, body }, include: { user: { select: { handle: true, displayName: true } } } });
+    if (replyToId && !(await prisma.streamChatMessage.findFirst({ where: { id: replyToId, streamId: s.id, hidden: false }, select: { id: true } })))
+      throw badRequest("That message isn't in this show anymore");
+    const msg = cleanReply(await prisma.streamChatMessage.create({ data: { streamId: s.id, userId: u.id, body, replyToId: replyToId ?? null }, include: chatInclude }));
     emit(`stream:${s.id}`, "stream:chat", msg);
     return msg;
   });

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { StorefrontInput } from "@haven/shared";
 import { prisma } from "../db";
 import { requireSeller, requireUser } from "../lib/auth";
@@ -6,6 +7,37 @@ import { conflict, forbidden, notFound } from "../lib/errors";
 import { parse } from "../lib/validate";
 import { audit } from "../lib/audit";
 import { notify } from "../notify";
+
+/** Units sold count orders that were paid for and not cancelled or refunded. Test orders don't count. */
+const SOLD = ["PAID", "FULFILLING", "SHIPPED", "DELIVERED"] as const;
+
+/** What a seller's profile shows about their shop: real counts only, plus their live and upcoming shows. */
+async function shopSummary(sellerId: string) {
+  const [products, sold, orders, rating, shows] = await Promise.all([
+    prisma.product.count({ where: { sellerId, status: "ACTIVE" } }),
+    prisma.orderItem.aggregate({ where: { order: { sellerId, isTest: false, status: { in: [...SOLD] } } }, _sum: { quantity: true } }),
+    prisma.order.count({ where: { sellerId, isTest: false, status: { in: [...SOLD] } } }),
+    prisma.review.aggregate({ where: { product: { sellerId } }, _avg: { rating: true }, _count: true }),
+    prisma.livestream.findMany({
+      where: { sellerId, status: { in: ["LIVE", "PAUSED", "SCHEDULED"] } },
+      orderBy: [{ status: "asc" }, { scheduledFor: "asc" }],
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        scheduledFor: true,
+        products: { where: { hidden: false }, orderBy: { position: "asc" }, take: 1, select: { product: { select: { media: { orderBy: { position: "asc" }, take: 1, select: { url: true } } } } } },
+      },
+    }),
+  ]);
+  const show = (s: (typeof shows)[number]) => ({ id: s.id, title: s.title, status: s.status, scheduledFor: s.scheduledFor, coverUrl: s.products[0]?.product.media[0]?.url ?? null });
+  return {
+    stats: { products, unitsSold: sold._sum.quantity ?? 0, orders, rating: rating._avg.rating, reviewCount: rating._count },
+    liveNow: shows.filter((s) => s.status === "LIVE" || s.status === "PAUSED").map(show)[0] ?? null,
+    upcoming: shows.filter((s) => s.status === "SCHEDULED").map(show),
+  };
+}
 
 export async function sellerRoutes(app: FastifyInstance) {
   /**
@@ -70,19 +102,84 @@ export async function sellerRoutes(app: FastifyInstance) {
         avatarUrl: true,
         bio: true,
         createdAt: true,
-        seller: { select: { storefront: { select: { slug: true, name: true, logoUrl: true } } } },
+        seller: {
+          select: {
+            id: true,
+            status: true,
+            businessName: true,
+            createdAt: true,
+            storefront: { select: { slug: true, name: true, logoUrl: true, bannerUrl: true, description: true, shippingPolicy: true, returnPolicy: true } },
+          },
+        },
         _count: { select: { followers: true, following: true } },
       },
     });
     if (!u) throw notFound("User");
-    const [videoCount, mine, block] = await Promise.all([
+    const [videoCount, mine, block, shop] = await Promise.all([
       prisma.video.count({ where: { creatorId: u.id, status: "READY" } }),
       req.user ? prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: req.user.id, followeeId: u.id } } }) : null,
       req.user ? prisma.userBlock.findMany({ where: { OR: [{ blockerId: req.user.id, blockedId: u.id }, { blockerId: u.id, blockedId: req.user.id }] } }) : [],
+      u.seller?.status === "APPROVED" ? shopSummary(u.seller.id) : null,
     ]);
-    const { _count, ...rest } = u;
+    const { _count, seller, ...rest } = u;
     const blockedByMe = block.some((b) => b.blockerId === req.user?.id);
-    return { ...rest, followerCount: _count.followers, followingCount: _count.following, videoCount, followedByMe: !!mine, isMe: req.user?.id === u.id, blockedByMe, blocked: block.length > 0 };
+    return {
+      ...rest,
+      // Only approved sellers show a shop on their profile.
+      seller: seller?.status === "APPROVED" ? { businessName: seller.businessName, since: seller.createdAt, storefront: seller.storefront, ...shop } : null,
+      followerCount: _count.followers,
+      followingCount: _count.following,
+      videoCount,
+      followedByMe: !!mine,
+      isMe: req.user?.id === u.id,
+      blockedByMe,
+      blocked: block.length > 0,
+    };
+  });
+
+  /**
+   * The shop on someone's profile: their active products, searchable by name, brand, tag or description
+   * (so "red", "small" or "nike" find things), newest first or by price, a page at a time.
+   */
+  app.get("/users/:handle/products", async (req) => {
+    const q = parse(
+      z.object({ q: z.string().trim().max(80).optional(), sort: z.enum(["new", "price_low", "price_high"]).default("new"), offset: z.coerce.number().int().min(0).max(5000).default(0), limit: z.coerce.number().int().min(1).max(60).default(24) }),
+      req.query ?? {},
+    );
+    const u = await prisma.user.findUnique({ where: { handle: (req.params as { handle: string }).handle }, select: { id: true, seller: { select: { id: true, status: true } } } });
+    if (!u) throw notFound("User");
+    if (!u.seller || u.seller.status !== "APPROVED") return { products: [], total: 0, next: null };
+    if (req.user && (await prisma.userBlock.findFirst({ where: { OR: [{ blockerId: req.user.id, blockedId: u.id }, { blockerId: u.id, blockedId: req.user.id }] } })))
+      return { products: [], total: 0, next: null };
+    const words = (q.q ?? "").split(/\s+/).filter(Boolean).slice(0, 6);
+    const where = {
+      sellerId: u.seller.id,
+      status: "ACTIVE" as const,
+      AND: words.map((w) => ({
+        OR: [
+          { title: { contains: w, mode: "insensitive" as const } },
+          { brand: { contains: w, mode: "insensitive" as const } },
+          { description: { contains: w, mode: "insensitive" as const } },
+          { tags: { has: w.toLowerCase() } },
+          { variants: { some: { name: { contains: w, mode: "insensitive" as const } } } },
+        ],
+      })),
+    };
+    const include = { variants: { orderBy: { createdAt: "asc" as const } }, media: { orderBy: { position: "asc" as const }, take: 1 } };
+    let products;
+    let total: number;
+    if (q.sort === "new") {
+      [products, total] = await Promise.all([prisma.product.findMany({ where, include, orderBy: { createdAt: "desc" }, skip: q.offset, take: q.limit }), prisma.product.count({ where })]);
+    } else {
+      // Price lives on variants, so sort the (capped) matches here by each product's lowest price.
+      const all = await prisma.product.findMany({ where, include, orderBy: { createdAt: "desc" }, take: 1000 });
+      const low = (p: (typeof all)[number]) => (p.variants.length ? Math.min(...p.variants.map((v) => v.priceCents)) : Number.MAX_SAFE_INTEGER);
+      all.sort((a, b) => (q.sort === "price_low" ? low(a) - low(b) : low(b) - low(a)));
+      total = all.length;
+      products = all.slice(q.offset, q.offset + q.limit);
+    }
+    const end = q.offset + products.length;
+    return { products, total, next: end < total ? end : null };
   });
 
   app.post("/users/:id/follow", async (req) => {
